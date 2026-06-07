@@ -1,0 +1,363 @@
+import { useState, useMemo } from "react";
+import {
+  Shell,
+  Plus,
+  Waves,
+  Fish,
+  Activity,
+  Menu,
+  X,
+} from "lucide-react";
+import { useSurveyStore } from "@/store/surveyStore";
+import SurveyForm from "@/components/SurveyForm";
+import SurveyList from "@/components/SurveyList";
+import DiversityIndices from "@/components/DiversityIndices";
+import StationMap from "@/components/StationMap";
+import CommunityCharts from "@/components/CommunityCharts";
+import ExportPanel from "@/components/ExportPanel";
+import type { SurveyRecord } from "@/types";
+import { SEASON_LABEL, TIDE_LABEL, getSeason } from "@/lib/diversity";
+import { cn } from "@/lib/utils";
+
+type TabKey = "overview" | "surveys" | "analysis" | "map" | "export";
+
+export default function Home() {
+  const surveys = useSurveyStore((s) => s.surveys);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<SurveyRecord | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleEdit = (s: SurveyRecord) => {
+    setEditing(s);
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditing(null);
+  };
+
+  const allSpecies = useMemo(() => {
+    const merged = new Map<string, { count: number; coverage: number; name: string; sci: string }>();
+    for (const s of surveys) {
+      for (const sp of s.species) {
+        const existing = merged.get(sp.speciesId);
+        if (existing) {
+          existing.count += sp.count;
+          existing.coverage = Math.max(existing.coverage, sp.coverage);
+        } else {
+          merged.set(sp.speciesId, {
+            count: sp.count,
+            coverage: sp.coverage,
+            name: sp.commonName,
+            sci: sp.scientificName,
+          });
+        }
+      }
+    }
+    return Array.from(merged.values()).filter((v) => v.count > 0);
+  }, [surveys]);
+
+  const stats = useMemo(() => {
+    const stations = new Set(
+      surveys.map(
+        (s) => `${s.location.lat.toFixed(4)},${s.location.lng.toFixed(4)}`
+      )
+    ).size;
+    const totalIndividuals = allSpecies.reduce((sum, v) => sum + v.count, 0);
+    return {
+      surveyCount: surveys.length,
+      stations,
+      speciesCount: allSpecies.length,
+      totalIndividuals,
+    };
+  }, [surveys, allSpecies]);
+
+  const seasonStats = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of surveys) {
+      const season = getSeason(s.date);
+      map.set(season, (map.get(season) || 0) + 1);
+    }
+    return map;
+  }, [surveys]);
+
+  const tideStats = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of surveys) {
+      map.set(s.tideZone, (map.get(s.tideZone) || 0) + 1);
+    }
+    return map;
+  }, [surveys]);
+
+  const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+    { key: "overview", label: "总览", icon: <Activity className="w-4 h-4" /> },
+    { key: "surveys", label: "记录", icon: <Fish className="w-4 h-4" /> },
+    { key: "map", label: "地图", icon: <Waves className="w-4 h-4" /> },
+    { key: "analysis", label: "分析", icon: <Shell className="w-4 h-4" /> },
+    { key: "export", label: "导出", icon: <Menu className="w-4 h-4" /> },
+  ];
+
+  return (
+    <div className="min-h-screen pb-24 md:pb-8">
+      <header className="sticky top-0 z-30 bg-ocean-950/80 backdrop-blur-xl border-b border-ocean-700/40">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-ocean-400 to-reef-400 flex items-center justify-center shadow-lg">
+              <Shell className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-ocean-50 text-lg leading-tight">
+                潮间带生物调查
+              </h1>
+              <p className="text-xs text-ocean-400 leading-tight">
+                多样性分析系统
+              </p>
+            </div>
+          </div>
+
+          <div className="hidden md:flex items-center gap-1">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={cn(
+                  "px-4 py-2 rounded-xl font-medium transition-all min-h-[44px] flex items-center gap-2",
+                  activeTab === t.key
+                    ? "bg-ocean-500 text-white shadow-lg"
+                    : "text-ocean-300 hover:text-white hover:bg-ocean-800/50"
+                )}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setEditing(null);
+                setShowForm(true);
+              }}
+              className="btn-primary py-2 px-4 min-h-[44px]"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="hidden sm:inline">新建调查</span>
+            </button>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-xl bg-ocean-800/50 text-ocean-200"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-ocean-700/40 p-2 space-y-1">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => {
+                  setActiveTab(t.key);
+                  setMobileMenuOpen(false);
+                }}
+                className={cn(
+                  "w-full px-4 py-3 rounded-xl font-medium transition-all flex items-center gap-2",
+                  activeTab === t.key
+                    ? "bg-ocean-500 text-white"
+                    : "text-ocean-300 hover:bg-ocean-800/50"
+                )}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-5 space-y-5">
+        {activeTab === "overview" && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="stat-card">
+                <div className="text-3xl font-bold text-ocean-300">
+                  {stats.surveyCount}
+                </div>
+                <div className="stat-label">调查记录</div>
+              </div>
+              <div className="stat-card">
+                <div className="text-3xl font-bold text-reef-300">
+                  {stats.stations}
+                </div>
+                <div className="stat-label">调查站位</div>
+              </div>
+              <div className="stat-card">
+                <div className="text-3xl font-bold text-sand-300">
+                  {stats.speciesCount}
+                </div>
+                <div className="stat-label">累计物种</div>
+              </div>
+              <div className="stat-card">
+                <div className="text-3xl font-bold text-purple-300">
+                  {stats.totalIndividuals}
+                </div>
+                <div className="stat-label">累计个体</div>
+              </div>
+            </div>
+
+            {allSpecies.length > 0 && (
+              <DiversityIndices
+                species={allSpecies.map((v) => ({
+                  speciesId: v.name,
+                  scientificName: v.sci,
+                  commonName: v.name,
+                  count: v.count,
+                  coverage: v.coverage,
+                }))}
+              />
+            )}
+
+            {surveys.length > 0 && (
+              <div className="grid md:grid-cols-2 gap-5">
+                <div className="card-glass p-5">
+                  <h3 className="section-title">
+                    <Waves className="w-6 h-6 text-reef-400" />
+                    潮带分布
+                  </h3>
+                  <div className="space-y-3">
+                    {(["high", "mid", "low"] as const).map((tz) => {
+                      const count = tideStats.get(tz) || 0;
+                      const pct =
+                        surveys.length > 0 ? (count / surveys.length) * 100 : 0;
+                      return (
+                        <div key={tz}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-ocean-200">
+                              {TIDE_LABEL[tz]}
+                            </span>
+                            <span className="text-ocean-400">
+                              {count} ({pct.toFixed(0)}%)
+                            </span>
+                          </div>
+                          <div className="h-3 rounded-full bg-ocean-900/60 overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                tz === "high"
+                                  ? "bg-tide-high"
+                                  : tz === "mid"
+                                  ? "bg-tide-mid"
+                                  : "bg-tide-low"
+                              )}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="card-glass p-5">
+                  <h3 className="section-title">
+                    <Activity className="w-6 h-6 text-reef-400" />
+                    季节分布
+                  </h3>
+                  <div className="space-y-3">
+                    {(["spring", "summer", "autumn", "winter"] as const).map(
+                      (sn) => {
+                        const count = seasonStats.get(sn) || 0;
+                        const pct =
+                          surveys.length > 0
+                            ? (count / surveys.length) * 100
+                            : 0;
+                        const colors: Record<string, string> = {
+                          spring: "bg-green-500",
+                          summer: "bg-orange-500",
+                          autumn: "bg-red-500",
+                          winter: "bg-indigo-500",
+                        };
+                        return (
+                          <div key={sn}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-ocean-200">
+                                {SEASON_LABEL[sn]}
+                              </span>
+                              <span className="text-ocean-400">
+                                {count} ({pct.toFixed(0)}%)
+                              </span>
+                            </div>
+                            <div className="h-3 rounded-full bg-ocean-900/60 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${colors[sn]}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <StationMap surveys={surveys} />
+          </>
+        )}
+
+        {activeTab === "surveys" && (
+          <SurveyList surveys={surveys} onEdit={handleEdit} />
+        )}
+
+        {activeTab === "map" && <StationMap surveys={surveys} />}
+
+        {activeTab === "analysis" && (
+          <div className="space-y-5">
+            <CommunityCharts surveys={surveys} />
+            {surveys.length > 0 && (
+              <div className="grid md:grid-cols-2 gap-5">
+                {surveys.slice(0, 6).map((s) => (
+                  <div key={s.id} className="card-glass p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-semibold text-ocean-100">
+                        {s.stationName}
+                      </h4>
+                      <span className="text-xs text-ocean-400">{s.date}</span>
+                    </div>
+                    <DiversityIndices species={s.species} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "export" && <ExportPanel surveys={surveys} />}
+      </main>
+
+      <div className="fixed bottom-4 left-0 right-0 md:hidden z-20 px-4">
+        <button
+          onClick={() => {
+            setEditing(null);
+            setShowForm(true);
+          }}
+          className="btn-primary w-full shadow-2xl"
+        >
+          <Plus className="w-6 h-6" />
+          新建调查记录
+        </button>
+      </div>
+
+      {showForm && <SurveyForm onClose={handleCloseForm} editing={editing} />}
+    </div>
+  );
+}

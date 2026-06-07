@@ -1,0 +1,397 @@
+import { useState, useCallback } from "react";
+import {
+  Plus,
+  Minus,
+  Trash2,
+  PlusCircle,
+  MapPin,
+  Calendar,
+  Waves,
+  Square,
+  Mountain,
+  StickyNote,
+  Save,
+  X,
+} from "lucide-react";
+import type {
+  SurveyRecord,
+  TideZone,
+  SubstrateType,
+  SpeciesRecord,
+} from "@/types";
+import { SUBSTRATE_LABEL, TIDE_LABEL } from "@/lib/diversity";
+import { useSurveyStore } from "@/store/surveyStore";
+import SpeciesPicker from "./SpeciesPicker";
+import DiversityIndices from "./DiversityIndices";
+import { cn } from "@/lib/utils";
+
+interface SurveyFormProps {
+  onClose: () => void;
+  editing?: SurveyRecord | null;
+}
+
+const TIDE_OPTIONS: TideZone[] = ["high", "mid", "low"];
+const SUBSTRATE_OPTIONS: SubstrateType[] = [
+  "rocky",
+  "sandy",
+  "muddy",
+  "pebble",
+  "cobble",
+  "mixed",
+];
+const QUADRAT_OPTIONS = ["0.25×0.25m", "0.5×0.5m", "1×1m", "2×2m", "5×5m"];
+
+export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
+  const addSurvey = useSurveyStore((s) => s.addSurvey);
+  const updateSurvey = useSurveyStore((s) => s.updateSurvey);
+
+  const [date, setDate] = useState(editing?.date || new Date().toISOString().slice(0, 10));
+  const [stationName, setStationName] = useState(editing?.stationName || "");
+  const [tideZone, setTideZone] = useState<TideZone>(editing?.tideZone || "mid");
+  const [quadratSize, setQuadratSize] = useState(editing?.quadratSize || "1×1m");
+  const [substrateType, setSubstrateType] = useState<SubstrateType>(
+    editing?.substrateType || "rocky"
+  );
+  const [lat, setLat] = useState(String(editing?.location.lat || 30.0));
+  const [lng, setLng] = useState(String(editing?.location.lng || 121.0));
+  const [notes, setNotes] = useState(editing?.notes || "");
+  const [species, setSpecies] = useState<SpeciesRecord[]>(editing?.species || []);
+  const [showPicker, setShowPicker] = useState(false);
+
+  const getCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      alert("浏览器不支持定位");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude.toFixed(6));
+        setLng(pos.coords.longitude.toFixed(6));
+      },
+      () => alert("定位失败，请手动输入")
+    );
+  }, []);
+
+  const handleAddSpecies = (sp: SpeciesRecord) => {
+    setSpecies((prev) => [...prev, sp]);
+  };
+
+  const updateSpeciesCount = (index: number, delta: number) => {
+    setSpecies((prev) =>
+      prev.map((s, i) =>
+        i === index ? { ...s, count: Math.max(0, s.count + delta) } : s
+      )
+    );
+  };
+
+  const updateSpeciesCoverage = (index: number, value: number) => {
+    setSpecies((prev) =>
+      prev.map((s, i) =>
+        i === index ? { ...s, coverage: Math.max(0, Math.min(100, value)) } : s
+      )
+    );
+  };
+
+  const removeSpecies = (index: number) => {
+    setSpecies((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = () => {
+    if (!stationName.trim()) {
+      alert("请输入站位名称");
+      return;
+    }
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    if (isNaN(latNum) || isNaN(lngNum)) {
+      alert("请输入有效的经纬度");
+      return;
+    }
+
+    const payload = {
+      date,
+      stationName: stationName.trim(),
+      tideZone,
+      quadratSize,
+      substrateType,
+      location: { lat: latNum, lng: lngNum },
+      species: species.filter((s) => s.count > 0 || s.coverage > 0),
+      notes: notes.trim() || undefined,
+    };
+
+    if (editing) {
+      updateSurvey(editing.id, payload);
+    } else {
+      addSurvey(payload);
+    }
+    onClose();
+  };
+
+  const existingSpeciesIds = species.map((s) => s.speciesId);
+
+  return (
+    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center overflow-y-auto">
+      <div className="card-glass w-full sm:w-[640px] sm:max-h-[90vh] max-h-[95vh] flex flex-col rounded-t-3xl sm:rounded-3xl overflow-hidden my-auto">
+        <div className="flex items-center justify-between p-4 border-b border-ocean-700/40 flex-shrink-0">
+          <h3 className="text-lg font-bold text-ocean-100">
+            {editing ? "编辑调查记录" : "新建调查记录"}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-ocean-700/40 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label-text flex items-center gap-1">
+                <Calendar className="w-4 h-4" /> 调查日期
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="label-text">站位名称</label>
+              <input
+                type="text"
+                value={stationName}
+                onChange={(e) => setStationName(e.target.value)}
+                placeholder="如：青岛栈桥A1"
+                className="input-field"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label-text flex items-center gap-1">
+              <Waves className="w-4 h-4" /> 潮位带
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {TIDE_OPTIONS.map((tz) => (
+                <button
+                  key={tz}
+                  onClick={() => setTideZone(tz)}
+                  className={cn(
+                    "py-3 px-4 rounded-xl font-medium transition-all min-h-[48px] border",
+                    tideZone === tz
+                      ? tz === "high"
+                        ? "bg-tide-high/20 border-tide-high text-ocean-100"
+                        : tz === "mid"
+                        ? "bg-tide-mid/20 border-tide-mid text-ocean-100"
+                        : "bg-tide-low/20 border-tide-low text-ocean-100"
+                      : "bg-ocean-800/30 border-ocean-700/40 text-ocean-300 hover:text-white"
+                  )}
+                >
+                  {TIDE_LABEL[tz]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label-text flex items-center gap-1">
+                <Square className="w-4 h-4" /> 样方尺寸
+              </label>
+              <select
+                value={quadratSize}
+                onChange={(e) => setQuadratSize(e.target.value)}
+                className="select-field"
+              >
+                {QUADRAT_OPTIONS.map((q) => (
+                  <option key={q} value={q}>
+                    {q}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label-text flex items-center gap-1">
+                <Mountain className="w-4 h-4" /> 底质类型
+              </label>
+              <select
+                value={substrateType}
+                onChange={(e) => setSubstrateType(e.target.value as SubstrateType)}
+                className="select-field"
+              >
+                {SUBSTRATE_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {SUBSTRATE_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="label-text flex items-center gap-1">
+              <MapPin className="w-4 h-4" /> 站位坐标
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                step="0.000001"
+                value={lat}
+                onChange={(e) => setLat(e.target.value)}
+                placeholder="纬度 Lat"
+                className="input-field"
+              />
+              <input
+                type="number"
+                step="0.000001"
+                value={lng}
+                onChange={(e) => setLng(e.target.value)}
+                placeholder="经度 Lng"
+                className="input-field"
+              />
+            </div>
+            <button
+              onClick={getCurrentLocation}
+              className="btn-ghost w-full mt-2 text-sm"
+            >
+              <MapPin className="w-4 h-4" /> 获取当前位置
+            </button>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="label-text mb-0 flex items-center gap-1">
+                <PlusCircle className="w-4 h-4" /> 物种记录 ({species.length})
+              </label>
+              <button
+                onClick={() => setShowPicker(true)}
+                className="btn-secondary py-2 px-4 text-sm min-h-[40px]"
+              >
+                <Plus className="w-4 h-4" /> 添加物种
+              </button>
+            </div>
+
+            {species.length === 0 ? (
+              <div className="card-glass p-8 text-center text-ocean-400">
+                <PlusCircle className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <p>点击上方按钮添加样方内的物种</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {species.map((sp, i) => (
+                  <div
+                    key={sp.speciesId + i}
+                    className="card-glass p-3 space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-reef-300 truncate">
+                          {sp.commonName}
+                        </div>
+                        <div className="text-xs text-ocean-400 italic truncate">
+                          {sp.scientificName}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeSpecies(i)}
+                        className="p-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-ocean-300 mb-1 block">
+                          个体数
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateSpeciesCount(i, -1)}
+                            className="w-10 h-10 rounded-xl bg-ocean-800/50 flex items-center justify-center text-ocean-200 hover:bg-ocean-700/50 transition-colors flex-shrink-0"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <input
+                            type="number"
+                            value={sp.count}
+                            onChange={(e) =>
+                              setSpecies((prev) =>
+                                prev.map((s, idx) =>
+                                  idx === i
+                                    ? { ...s, count: Math.max(0, parseInt(e.target.value) || 0) }
+                                    : s
+                                )
+                              )
+                            }
+                            className="input-field py-2 h-10 text-center"
+                          />
+                          <button
+                            onClick={() => updateSpeciesCount(i, 1)}
+                            className="w-10 h-10 rounded-xl bg-ocean-800/50 flex items-center justify-center text-ocean-200 hover:bg-ocean-700/50 transition-colors flex-shrink-0"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-ocean-300 mb-1 block">
+                          盖度 %
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={sp.coverage}
+                          onChange={(e) =>
+                            updateSpeciesCoverage(i, parseFloat(e.target.value) || 0)
+                          }
+                          className="input-field py-2 h-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {species.length > 0 && <DiversityIndices species={species} />}
+
+          <div>
+            <label className="label-text flex items-center gap-1">
+              <StickyNote className="w-4 h-4" /> 备注
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="环境条件、异常情况等..."
+              rows={3}
+              className="input-field resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-ocean-700/40 flex gap-3 flex-shrink-0">
+          <button onClick={onClose} className="btn-ghost flex-1">
+            取消
+          </button>
+          <button onClick={handleSubmit} className="btn-primary flex-1">
+            <Save className="w-5 h-5" />
+            {editing ? "保存修改" : "保存记录"}
+          </button>
+        </div>
+      </div>
+
+      {showPicker && (
+        <SpeciesPicker
+          onSelect={handleAddSpecies}
+          onClose={() => setShowPicker(false)}
+          existingIds={existingSpeciesIds}
+        />
+      )}
+    </div>
+  );
+}

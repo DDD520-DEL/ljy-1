@@ -1,0 +1,93 @@
+@import "leaflet/dist/leaflet.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: linear-gradient(135deg, #082f49 0%, #0c4a6e 50%, #042f2e 100%);
+  min-height: 100vh;
+  color: #f0f9ff;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+@layer components {
+  .card-glass {
+    @apply bg-ocean-900/50 backdrop-blur-xl border border-ocean-700/40 rounded-2xl;
+  }
+
+  .btn-primary {
+    @apply bg-ocean-500 hover:bg-ocean-600 active:bg-ocean-700 text-white font-semibold py-3 px-5 rounded-xl transition-all min-h-[48px] shadow-touch active:shadow-touch-active flex items-center justify-center gap-2;
+  }
+
+  .btn-secondary {
+    @apply bg-reef-500 hover:bg-reef-600 active:bg-reef-700 text-white font-semibold py-3 px-5 rounded-xl transition-all min-h-[48px] shadow-touch active:shadow-touch-active flex items-center justify-center gap-2;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 hover:bg-red-600 active:bg-red-700 text-white font-semibold py-3 px-5 rounded-xl transition-all min-h-[48px] shadow-touch active:shadow-touch-active flex items-center justify-center gap-2;
+  }
+
+  .btn-ghost {
+    @apply bg-ocean-800/50 hover:bg-ocean-700/50 text-ocean-100 font-semibold py-3 px-5 rounded-xl transition-all min-h-[48px] border border-ocean-600/40 flex items-center justify-center gap-2;
+  }
+
+  .input-field {
+    @apply w-full bg-ocean-950/60 border border-ocean-700/40 rounded-xl px-4 py-3 text-ocean-50 placeholder-ocean-400 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-transparent min-h-[48px] text-base;
+  }
+
+  .select-field {
+    @apply w-full bg-ocean-950/60 border border-ocean-700/40 rounded-xl px-4 py-3 text-ocean-50 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-transparent min-h-[48px] text-base;
+  }
+
+  .label-text {
+    @apply block text-sm font-medium text-ocean-200 mb-1.5;
+  }
+
+  .section-title {
+    @apply text-lg font-bold text-ocean-100 mb-3 flex items-center gap-2;
+  }
+
+  .chip {
+    @apply inline-flex items-center px-3 py-1 rounded-full bg-ocean-800/50 text-ocean-200 text-sm border border-ocean-700/40;
+  }
+
+  .stat-card {
+    @apply card-glass p-4 text-center;
+  }
+
+  .stat-value {
+    @apply text-2xl font-bold text-reef-300;
+  }
+
+  .stat-label {
+    @apply text-xs text-ocean-300 mt-1;
+  }
+}
+
+.leaflet-container {
+  background: #0c4a6e;
+  border-radius: 1rem;
+}
+
+.leaflet-tile {
+  filter: brightness(0.7) saturate(0.8) hue-rotate(180deg);
+}
