@@ -32,7 +32,6 @@ import type {
   SpeciesRecord,
   PhotoRecord,
   WeatherCondition,
-  TemplateSpecies,
   SurveyTemplate,
 } from "@/types";
 import { SUBSTRATE_LABEL, TIDE_LABEL } from "@/lib/diversity";
@@ -49,6 +48,7 @@ import DiversityIndices from "./DiversityIndices";
 import PhotoCapture from "./PhotoCapture";
 import PhotoGrid from "./PhotoGrid";
 import { cn } from "@/lib/utils";
+import { mergeTemplateSpecies, speciesToTemplateSpecies } from "@/lib/template";
 
 interface SurveyFormProps {
   onClose: () => void;
@@ -183,17 +183,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       alert("当前没有物种可保存为模板");
       return;
     }
-    const templateSpecies: TemplateSpecies[] = species.map((s) => ({
-      speciesId: s.speciesId,
-      scientificName: s.scientificName,
-      commonName: s.commonName,
-      kingdom: s.kingdom,
-      phylum: s.phylum,
-      className: s.className,
-      order: s.order,
-      family: s.family,
-      genus: s.genus,
-    }));
+    const templateSpecies = speciesToTemplateSpecies(species);
     createTemplate(templateName.trim(), templateSpecies, templateDesc.trim() || undefined);
     setTemplateName("");
     setTemplateDesc("");
@@ -201,43 +191,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   };
 
   const handleLoadTemplate = (template: SurveyTemplate) => {
-    const existingIds = new Set(species.map((s) => s.speciesId));
-    const newSpecies: SpeciesRecord[] = template.species
-      .filter((ts) => !existingIds.has(ts.speciesId))
-      .map((ts) => ({
-        speciesId: ts.speciesId,
-        scientificName: ts.scientificName,
-        commonName: ts.commonName,
-        count: 0,
-        coverage: 0,
-        kingdom: ts.kingdom,
-        phylum: ts.phylum,
-        className: ts.className,
-        order: ts.order,
-        family: ts.family,
-        genus: ts.genus,
-        photoIds: [],
-      }));
-    if (newSpecies.length > 0) {
-      setSpecies((prev) => [...prev, ...newSpecies]);
-    } else {
-      setSpecies(
-        template.species.map((ts) => ({
-          speciesId: ts.speciesId,
-          scientificName: ts.scientificName,
-          commonName: ts.commonName,
-          count: 0,
-          coverage: 0,
-          kingdom: ts.kingdom,
-          phylum: ts.phylum,
-          className: ts.className,
-          order: ts.order,
-          family: ts.family,
-          genus: ts.genus,
-          photoIds: [],
-        }))
-      );
-    }
+    setSpecies((prev) => mergeTemplateSpecies(prev, template.species));
     setShowLoadTemplate(false);
   };
 
