@@ -59,6 +59,7 @@ export default function SyncPanel({ onClose }: SyncPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanTimerRef = useRef<number | null>(null);
+  const handleQRDataRef = useRef<((data: string) => void) | null>(null);
 
   const [pasteInput, setPasteInput] = useState("");
 
@@ -92,8 +93,8 @@ export default function SyncPanel({ onClose }: SyncPanelProps) {
           inversionAttempts: "dontInvert",
         });
 
-        if (code) {
-          handleQRData(code.data);
+        if (code && handleQRDataRef.current) {
+          handleQRDataRef.current(code.data);
         }
       }
       scanTimerRef.current = requestAnimationFrame(tick);
@@ -161,8 +162,13 @@ export default function SyncPanel({ onClose }: SyncPanelProps) {
       stopCamera();
       handleImportPackage(pkg);
     } else {
-      const decoded = decodeURIComponent(escape(atob(data)));
       try {
+        const bin = atob(data);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) {
+          bytes[i] = bin.charCodeAt(i);
+        }
+        const decoded = new TextDecoder().decode(bytes);
         const parsed = JSON.parse(decoded);
         if (validateSyncPackage(parsed)) {
           stopCamera();
@@ -173,6 +179,10 @@ export default function SyncPanel({ onClose }: SyncPanelProps) {
       }
     }
   };
+
+  useEffect(() => {
+    handleQRDataRef.current = handleQRData;
+  }, [handleQRData]);
 
   const handleExport = async () => {
     setLoading(true);

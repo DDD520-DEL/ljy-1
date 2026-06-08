@@ -13,7 +13,7 @@ import { useSurveyStore } from "@/store/surveyStore";
 
 const SYNC_VERSION = 1;
 
-function simpleHash(str: string): string {
+export function simpleHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
@@ -220,7 +220,8 @@ export async function mergeSyncPackage(
     const local = localSurveyMap.get(remote.id);
 
     if (!local) {
-      state.addSurvey({
+      state.importSurvey({
+        id: remote.id,
         date: remote.date,
         stationName: remote.stationName,
         tideZone: remote.tideZone,
@@ -230,17 +231,8 @@ export async function mergeSyncPackage(
         species: remote.species,
         notes: remote.notes,
         photoIds: remote.photoIds,
+        createdAt: remote.createdAt || Date.now(),
       });
-      const latest = useSurveyStore.getState().surveys.find(
-        (s) => s.stationName === remote.stationName && s.date === remote.date
-      );
-      if (latest && latest.id !== remote.id) {
-        useSurveyStore.getState().deleteSurvey(latest.id);
-        useSurveyStore.getState().surveys.unshift({
-          ...remote,
-          createdAt: remote.createdAt || Date.now(),
-        });
-      }
       result.added++;
       continue;
     }
@@ -369,12 +361,22 @@ export function downloadSyncPackage(pkg: SyncPackage): void {
 
 export function encodeSyncPackageForQR(pkg: SyncPackage): string {
   const json = JSON.stringify(pkg);
-  return btoa(unescape(encodeURIComponent(json)));
+  const bytes = new TextEncoder().encode(json);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) {
+    bin += String.fromCharCode(bytes[i]);
+  }
+  return btoa(bin);
 }
 
 export function decodeSyncPackageFromQR(encoded: string): SyncPackage | null {
   try {
-    const json = decodeURIComponent(escape(atob(encoded)));
+    const bin = atob(encoded);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    const json = new TextDecoder().decode(bytes);
     const parsed = JSON.parse(json);
     if (validateSyncPackage(parsed)) {
       return parsed;

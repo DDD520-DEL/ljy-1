@@ -5,6 +5,7 @@ import type { SurveyRecord, SpeciesRecord } from "@/types";
 interface SurveyState {
   surveys: SurveyRecord[];
   addSurvey: (survey: Omit<SurveyRecord, "id" | "createdAt">) => void;
+  importSurvey: (survey: SurveyRecord) => void;
   updateSurvey: (id: string, survey: Partial<SurveyRecord>) => void;
   deleteSurvey: (id: string) => void;
   clearAll: () => void;
@@ -32,6 +33,17 @@ export const useSurveyStore = create<SurveyState>()(
             ...state.surveys,
           ],
         })),
+      importSurvey: (survey) =>
+        set((state) => {
+          if (state.surveys.some((s) => s.id === survey.id)) {
+            return {
+              surveys: state.surveys.map((s) =>
+                s.id === survey.id ? { ...s, ...survey } : s
+              ),
+            };
+          }
+          return { surveys: [survey, ...state.surveys] };
+        }),
       updateSurvey: (id, survey) =>
         set((state) => ({
           surveys: state.surveys.map((s) =>
