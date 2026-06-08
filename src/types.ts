@@ -66,6 +66,18 @@ export interface SurveyRecord {
   notes?: string;
   photoIds?: string[];
   createdAt: number;
+  updatedAt?: number;
+  isDeleted?: boolean;
+  deletedAt?: number;
+}
+
+export interface SurveyVersionSnapshot {
+  id: string;
+  surveyId: string;
+  version: number;
+  data: SurveyRecord;
+  createdAt: number;
+  changeDescription?: string;
 }
 
 export interface TaxonNode {

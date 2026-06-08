@@ -10,6 +10,8 @@ import {
   ChevronRight,
   ChevronDown,
   Image as ImageIcon,
+  History,
+  Trash as TrashIcon,
 } from "lucide-react";
 import type { SurveyRecord, PhotoRecord, SpeciesRecord } from "@/types";
 import {
@@ -24,6 +26,8 @@ import { deletePhotosBySurvey } from "@/lib/photoStore";
 import { useSurveyPhotos, useSpeciesPhotos } from "@/hooks/usePhotos";
 import PhotoGrid from "./PhotoGrid";
 import { cn } from "@/lib/utils";
+import SurveyHistory from "./SurveyHistory";
+import RecycleBin from "./RecycleBin";
 
 interface SurveyListProps {
   surveys: SurveyRecord[];
@@ -40,10 +44,12 @@ function SurveyCard({
   survey,
   onEdit,
   onDelete,
+  onViewHistory,
 }: {
   survey: SurveyRecord;
   onEdit: (survey: SurveyRecord) => void;
   onDelete: (id: string) => void;
+  onViewHistory: (survey: SurveyRecord) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { photos: surveyPhotos, removePhoto: removeSurveyPhoto } = useSurveyPhotos(
@@ -59,9 +65,8 @@ function SurveyCard({
     (sp) => sp.count > 0 || sp.coverage > 0
   );
 
-  const handleDelete = async () => {
-    if (confirm("确定删除这条调查记录吗？相关照片也将被删除。")) {
-      await deletePhotosBySurvey(survey.id);
+  const handleDelete = () => {
+    if (confirm("确定删除这条调查记录吗？记录将移入回收站，30天内可恢复。")) {
       onDelete(survey.id);
     }
   };
@@ -115,6 +120,16 @@ function SurveyCard({
             </div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewHistory(survey);
+              }}
+              className="p-2 rounded-lg text-ocean-300 hover:bg-ocean-700/40 hover:text-white transition-colors"
+              title="查看修改历史"
+            >
+              <History className="w-4 h-4" />
+            </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -264,6 +279,9 @@ function SpeciesCard({
 
 export default function SurveyList({ surveys, onEdit }: SurveyListProps) {
   const deleteSurvey = useSurveyStore((s) => s.deleteSurvey);
+  const [historySurvey, setHistorySurvey] = useState<SurveyRecord | null>(null);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const deletedCount = useSurveyStore((s) => s.getDeletedSurveys()).length;
 
   const sorted = useMemo(
     () => [...surveys].sort((a, b) => b.createdAt - a.createdAt),
@@ -272,36 +290,79 @@ export default function SurveyList({ surveys, onEdit }: SurveyListProps) {
 
   if (surveys.length === 0) {
     return (
-      <div className="card-glass p-8 text-center">
-        <List className="w-12 h-12 mx-auto mb-3 text-ocean-500 opacity-40" />
-        <p className="text-ocean-300">暂无调查记录</p>
-        <p className="text-ocean-500 text-sm mt-1">
-          点击「新建调查」开始记录潮间带生物样方数据
-        </p>
-      </div>
+      <>
+        <div className="card-glass p-8 text-center">
+          <List className="w-12 h-12 mx-auto mb-3 text-ocean-500 opacity-40" />
+          <p className="text-ocean-300">暂无调查记录</p>
+          <p className="text-ocean-500 text-sm mt-1">
+            点击「新建调查」开始记录潮间带生物样方数据
+          </p>
+          {deletedCount > 0 && (
+            <button
+              onClick={() => setShowRecycleBin(true)}
+              className="mt-4 btn-ghost text-sm"
+            >
+              <TrashIcon className="w-4 h-4" />
+              查看回收站 ({deletedCount})
+            </button>
+          )}
+        </div>
+        {historySurvey && (
+          <SurveyHistory
+            survey={historySurvey}
+            onClose={() => setHistorySurvey(null)}
+          />
+        )}
+        {showRecycleBin && (
+          <RecycleBin onClose={() => setShowRecycleBin(false)} />
+        )}
+      </>
     );
   }
 
   return (
-    <div className="card-glass p-5">
-      <h3 className="section-title">
-        <List className="w-6 h-6 text-reef-400" />
-        调查记录列表
-        <span className="ml-2 text-sm font-normal text-ocean-400">
-          ({surveys.length} 条)
-        </span>
-      </h3>
+    <>
+      <div className="card-glass p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h3 className="section-title mb-0">
+            <List className="w-6 h-6 text-reef-400" />
+            调查记录列表
+            <span className="ml-2 text-sm font-normal text-ocean-400">
+              ({surveys.length} 条)
+            </span>
+          </h3>
+          {deletedCount > 0 && (
+            <button
+              onClick={() => setShowRecycleBin(true)}
+              className="btn-ghost text-sm py-2 px-3 min-h-[40px]"
+            >
+              <TrashIcon className="w-4 h-4" />
+              回收站 ({deletedCount})
+            </button>
+          )}
+        </div>
 
-      <div className="space-y-2">
-        {sorted.map((s) => (
-          <SurveyCard
-            key={s.id}
-            survey={s}
-            onEdit={onEdit}
-            onDelete={deleteSurvey}
-          />
-        ))}
+        <div className="space-y-2">
+          {sorted.map((s) => (
+            <SurveyCard
+              key={s.id}
+              survey={s}
+              onEdit={onEdit}
+              onDelete={deleteSurvey}
+              onViewHistory={setHistorySurvey}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+      {historySurvey && (
+        <SurveyHistory
+          survey={historySurvey}
+          onClose={() => setHistorySurvey(null)}
+        />
+      )}
+      {showRecycleBin && (
+        <RecycleBin onClose={() => setShowRecycleBin(false)} />
+      )}
+    </>
   );
 }

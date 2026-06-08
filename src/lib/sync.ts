@@ -211,7 +211,9 @@ export async function mergeSyncPackage(
   };
 
   const state = useSurveyStore.getState();
-  const localSurveyMap = new Map(state.surveys.map((s) => [s.id, s]));
+  const localSurveyMap = new Map(
+    state.surveys.filter((s) => !s.isDeleted).map((s) => [s.id, s])
+  );
   const resolutionMap = new Map(
     resolutions.map((r) => [r.conflictId, r])
   );

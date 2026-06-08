@@ -38,7 +38,7 @@ type TabKey = "export" | "import";
 export default function SyncPanel({ onClose }: SyncPanelProps) {
   const { deviceId, deviceName, setDeviceName, setStatus, markSyncComplete, setError } =
     useSyncStore();
-  const surveys = useSurveyStore((s) => s.surveys);
+  const surveys = useSurveyStore((s) => s.getActiveSurveys());
 
   const [tab, setTab] = useState<TabKey>("export");
   const [editingName, setEditingName] = useState(false);

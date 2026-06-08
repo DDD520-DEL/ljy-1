@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 type TabKey = "overview" | "surveys" | "analysis" | "map" | "export" | "sync" | "atlas";
 
 export default function Home() {
-  const surveys = useSurveyStore((s) => s.surveys);
+  const surveys = useSurveyStore((s) => s.getActiveSurveys());
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<SurveyRecord | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
