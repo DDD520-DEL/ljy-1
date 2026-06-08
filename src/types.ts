@@ -157,3 +157,24 @@ export interface MergeResult {
   photosImported: number;
   skipped: number;
 }
+
+export interface TemplateSpecies {
+  speciesId: string;
+  scientificName: string;
+  commonName: string;
+  kingdom?: string;
+  phylum?: string;
+  className?: string;
+  order?: string;
+  family?: string;
+  genus?: string;
+}
+
+export interface SurveyTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  species: TemplateSpecies[];
+  createdAt: number;
+  updatedAt: number;
+}

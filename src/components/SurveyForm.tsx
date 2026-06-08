@@ -18,6 +18,12 @@ import {
   FlaskConical,
   Wind,
   CloudSun,
+  BookTemplate,
+  FolderDown,
+  Table as TableIcon,
+  LayoutList,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 import type {
   SurveyRecord,
@@ -26,9 +32,12 @@ import type {
   SpeciesRecord,
   PhotoRecord,
   WeatherCondition,
+  TemplateSpecies,
+  SurveyTemplate,
 } from "@/types";
 import { SUBSTRATE_LABEL, TIDE_LABEL } from "@/lib/diversity";
 import { useSurveyStore } from "@/store/surveyStore";
+import { useTemplateStore } from "@/store/templateStore";
 import {
   getPhotosBySurvey,
   getPhotosBySpecies,
@@ -104,6 +113,15 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const [notes, setNotes] = useState(editing?.notes || "");
   const [species, setSpecies] = useState<SpeciesRecord[]>(editing?.species || []);
   const [showPicker, setShowPicker] = useState(false);
+  const [quickCountMode, setQuickCountMode] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [showLoadTemplate, setShowLoadTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDesc, setTemplateDesc] = useState("");
+
+  const templates = useTemplateStore((s) => s.templates);
+  const createTemplate = useTemplateStore((s) => s.createTemplate);
+  const deleteTemplate = useTemplateStore((s) => s.deleteTemplate);
 
   const [surveyPhotos, setSurveyPhotos] = useState<PhotoRecord[]>([]);
   const [speciesPhotos, setSpeciesPhotos] = useState<Map<string, PhotoRecord[]>>(
@@ -154,6 +172,73 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
 
   const handleAddSpecies = (sp: SpeciesRecord) => {
     setSpecies((prev) => [...prev, { ...sp, photoIds: [] }]);
+  };
+
+  const handleSaveAsTemplate = () => {
+    if (!templateName.trim()) {
+      alert("请输入模板名称");
+      return;
+    }
+    if (species.length === 0) {
+      alert("当前没有物种可保存为模板");
+      return;
+    }
+    const templateSpecies: TemplateSpecies[] = species.map((s) => ({
+      speciesId: s.speciesId,
+      scientificName: s.scientificName,
+      commonName: s.commonName,
+      kingdom: s.kingdom,
+      phylum: s.phylum,
+      className: s.className,
+      order: s.order,
+      family: s.family,
+      genus: s.genus,
+    }));
+    createTemplate(templateName.trim(), templateSpecies, templateDesc.trim() || undefined);
+    setTemplateName("");
+    setTemplateDesc("");
+    setShowSaveTemplate(false);
+  };
+
+  const handleLoadTemplate = (template: SurveyTemplate) => {
+    const existingIds = new Set(species.map((s) => s.speciesId));
+    const newSpecies: SpeciesRecord[] = template.species
+      .filter((ts) => !existingIds.has(ts.speciesId))
+      .map((ts) => ({
+        speciesId: ts.speciesId,
+        scientificName: ts.scientificName,
+        commonName: ts.commonName,
+        count: 0,
+        coverage: 0,
+        kingdom: ts.kingdom,
+        phylum: ts.phylum,
+        className: ts.className,
+        order: ts.order,
+        family: ts.family,
+        genus: ts.genus,
+        photoIds: [],
+      }));
+    if (newSpecies.length > 0) {
+      setSpecies((prev) => [...prev, ...newSpecies]);
+    } else {
+      setSpecies(
+        template.species.map((ts) => ({
+          speciesId: ts.speciesId,
+          scientificName: ts.scientificName,
+          commonName: ts.commonName,
+          count: 0,
+          coverage: 0,
+          kingdom: ts.kingdom,
+          phylum: ts.phylum,
+          className: ts.className,
+          order: ts.order,
+          family: ts.family,
+          genus: ts.genus,
+          photoIds: [],
+        }))
+      );
+    }
+    setShowLoadTemplate(false);
   };
 
   const updateSpeciesCount = (index: number, delta: number) => {
@@ -554,22 +639,167 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <label className="label-text mb-0 flex items-center gap-1">
                 <PlusCircle className="w-4 h-4" /> 物种记录 ({species.length})
               </label>
-              <button
-                onClick={() => setShowPicker(true)}
-                className="btn-secondary py-2 px-4 text-sm min-h-[40px]"
-              >
-                <Plus className="w-4 h-4" /> 添加物种
-              </button>
+              <div className="flex items-center gap-1 flex-wrap">
+                {species.length > 0 && (
+                  <button
+                    onClick={() => setShowSaveTemplate(true)}
+                    className="btn-ghost py-2 px-3 text-sm min-h-[40px]"
+                    title="保存当前物种组合为模板"
+                  >
+                    <BookTemplate className="w-4 h-4" />
+                    <span className="hidden sm:inline">保存模板</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowLoadTemplate(true)}
+                  className="btn-ghost py-2 px-3 text-sm min-h-[40px]"
+                  title="加载物种模板"
+                >
+                  <FolderDown className="w-4 h-4" />
+                  <span className="hidden sm:inline">加载模板</span>
+                </button>
+                {species.length > 0 && (
+                  <div className="flex bg-ocean-800/40 rounded-xl p-0.5 mx-1">
+                    <button
+                      onClick={() => setQuickCountMode(false)}
+                      className={cn(
+                        "py-1.5 px-2.5 rounded-lg text-xs font-medium transition-all min-h-[36px] flex items-center gap-1",
+                        !quickCountMode
+                          ? "bg-ocean-500 text-white shadow"
+                          : "text-ocean-300 hover:text-white"
+                      )}
+                      title="标准视图"
+                    >
+                      <LayoutList className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setQuickCountMode(true)}
+                      className={cn(
+                        "py-1.5 px-2.5 rounded-lg text-xs font-medium transition-all min-h-[36px] flex items-center gap-1",
+                        quickCountMode
+                          ? "bg-ocean-500 text-white shadow"
+                          : "text-ocean-300 hover:text-white"
+                      )}
+                      title="快速计数表格模式"
+                    >
+                      <TableIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowPicker(true)}
+                  className="btn-secondary py-2 px-4 text-sm min-h-[40px]"
+                >
+                  <Plus className="w-4 h-4" /> 添加物种
+                </button>
+              </div>
             </div>
 
             {species.length === 0 ? (
               <div className="card-glass p-8 text-center text-ocean-400">
                 <PlusCircle className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p>点击上方按钮添加样方内的物种</p>
+                <p>点击「添加物种」或「加载模板」开始</p>
+              </div>
+            ) : quickCountMode ? (
+              <div className="card-glass overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-ocean-700/40 bg-ocean-800/30">
+                        <th className="text-left py-3 px-3 font-medium text-ocean-200">
+                          物种
+                        </th>
+                        <th className="text-center py-3 px-2 font-medium text-ocean-200 w-28">
+                          个体数
+                        </th>
+                        <th className="text-center py-3 px-2 font-medium text-ocean-200 w-24">
+                          盖度%
+                        </th>
+                        <th className="text-center py-3 px-2 font-medium text-ocean-200 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {species.map((sp, i) => (
+                        <tr
+                          key={sp.speciesId + i}
+                          className="border-b border-ocean-800/30 hover:bg-ocean-800/20 transition-colors"
+                        >
+                          <td className="py-2.5 px-3">
+                            <div className="font-medium text-reef-300 text-sm truncate">
+                              {sp.commonName}
+                            </div>
+                            <div className="text-xs text-ocean-400 italic truncate">
+                              {sp.scientificName}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-2">
+                            <div className="flex items-center gap-1 justify-center">
+                              <button
+                                onClick={() => updateSpeciesCount(i, -1)}
+                                className="w-7 h-7 rounded-lg bg-ocean-800/50 flex items-center justify-center text-ocean-200 hover:bg-ocean-700/50 transition-colors flex-shrink-0"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <input
+                                type="number"
+                                value={sp.count}
+                                onChange={(e) =>
+                                  setSpecies((prev) =>
+                                    prev.map((s, idx) =>
+                                      idx === i
+                                        ? {
+                                            ...s,
+                                            count: Math.max(
+                                              0,
+                                              parseInt(e.target.value) || 0
+                                            ),
+                                          }
+                                        : s
+                                    )
+                                  )
+                                }
+                                className="w-14 h-8 text-center bg-ocean-900/50 border border-ocean-700/40 rounded-lg text-ocean-100 text-sm focus:outline-none focus:border-reef-500"
+                              />
+                              <button
+                                onClick={() => updateSpeciesCount(i, 1)}
+                                className="w-7 h-7 rounded-lg bg-ocean-800/50 flex items-center justify-center text-ocean-200 hover:bg-ocean-700/50 transition-colors flex-shrink-0"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={sp.coverage}
+                              onChange={(e) =>
+                                updateSpeciesCoverage(
+                                  i,
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-full h-8 text-center bg-ocean-900/50 border border-ocean-700/40 rounded-lg text-ocean-100 text-sm focus:outline-none focus:border-reef-500"
+                            />
+                          </td>
+                          <td className="py-2.5 px-2 text-center">
+                            <button
+                              onClick={() => removeSpecies(i)}
+                              className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : (
               <div className="space-y-2">
@@ -709,6 +939,164 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
           </button>
         </div>
       </div>
+
+      {showSaveTemplate && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center">
+          <div className="card-glass w-full sm:w-[480px] rounded-t-3xl sm:rounded-3xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-ocean-700/40">
+              <h3 className="text-lg font-bold text-ocean-100 flex items-center gap-2">
+                <BookTemplate className="w-5 h-5 text-reef-400" />
+                保存为模板
+              </h3>
+              <button
+                onClick={() => {
+                  setShowSaveTemplate(false);
+                  setTemplateName("");
+                  setTemplateDesc("");
+                }}
+                className="p-2 rounded-lg hover:bg-ocean-700/40 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="label-text">模板名称 *</label>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="如：潮间带常见物种"
+                  className="input-field"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="label-text">描述（可选）</label>
+                <textarea
+                  value={templateDesc}
+                  onChange={(e) => setTemplateDesc(e.target.value)}
+                  placeholder="模板用途、适用场景等..."
+                  rows={2}
+                  className="input-field resize-none"
+                />
+              </div>
+              <div className="card-glass p-3 bg-ocean-800/30">
+                <p className="text-sm text-ocean-300">
+                  将保存当前 <span className="text-reef-300 font-medium">{species.length}</span> 个物种到模板中（不含个体数和盖度）。
+                </p>
+              </div>
+            </div>
+            <div className="p-4 border-t border-ocean-700/40 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSaveTemplate(false);
+                  setTemplateName("");
+                  setTemplateDesc("");
+                }}
+                className="btn-ghost flex-1"
+              >
+                取消
+              </button>
+              <button onClick={handleSaveAsTemplate} className="btn-primary flex-1">
+                <Save className="w-5 h-5" />
+                保存模板
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLoadTemplate && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center">
+          <div className="card-glass w-full sm:w-[540px] sm:max-h-[85vh] max-h-[90vh] flex flex-col rounded-t-3xl sm:rounded-3xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-ocean-700/40 flex-shrink-0">
+              <h3 className="text-lg font-bold text-ocean-100 flex items-center gap-2">
+                <FolderDown className="w-5 h-5 text-reef-400" />
+                加载物种模板
+              </h3>
+              <button
+                onClick={() => setShowLoadTemplate(false)}
+                className="p-2 rounded-lg hover:bg-ocean-700/40 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {templates.length === 0 ? (
+                <div className="text-center text-ocean-400 py-12">
+                  <BookTemplate className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                  <p className="font-medium">暂无保存的模板</p>
+                  <p className="text-sm mt-1">在调查中添加物种后可保存为模板</p>
+                </div>
+              ) : (
+                templates.map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    className="card-glass p-4 hover:bg-ocean-800/40 transition-colors group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => handleLoadTemplate(tpl)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-ocean-100">
+                            {tpl.name}
+                          </h4>
+                          <span className="text-xs text-ocean-500 bg-ocean-800/50 px-2 py-0.5 rounded-full">
+                            {tpl.species.length} 种
+                          </span>
+                        </div>
+                        {tpl.description && (
+                          <p className="text-sm text-ocean-400 mt-1 line-clamp-2">
+                            {tpl.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {tpl.species.slice(0, 5).map((s) => (
+                            <span
+                              key={s.speciesId}
+                              className="text-xs bg-ocean-800/50 text-ocean-300 px-2 py-0.5 rounded"
+                            >
+                              {s.commonName}
+                            </span>
+                          ))}
+                          {tpl.species.length > 5 && (
+                            <span className="text-xs text-ocean-500 px-2 py-0.5">
+                              +{tpl.species.length - 5} 更多
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleLoadTemplate(tpl)}
+                          className="btn-secondary py-2 px-3 text-sm min-h-[40px]"
+                        >
+                          <Check className="w-4 h-4" />
+                          加载
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`确定删除模板「${tpl.name}」吗？`)) {
+                              deleteTemplate(tpl.id);
+                            }
+                          }}
+                          className="p-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100"
+                          title="删除模板"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPicker && (
         <SpeciesPicker
