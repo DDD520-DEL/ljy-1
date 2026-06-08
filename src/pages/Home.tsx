@@ -7,6 +7,7 @@ import {
   Activity,
   Menu,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import SurveyForm from "@/components/SurveyForm";
@@ -15,11 +16,13 @@ import DiversityIndices from "@/components/DiversityIndices";
 import StationMap from "@/components/StationMap";
 import CommunityCharts from "@/components/CommunityCharts";
 import ExportPanel from "@/components/ExportPanel";
+import SyncPanel from "@/components/SyncPanel";
+import SyncStatus from "@/components/SyncStatus";
 import type { SurveyRecord } from "@/types";
 import { SEASON_LABEL, TIDE_LABEL, getSeason } from "@/lib/diversity";
 import { cn } from "@/lib/utils";
 
-type TabKey = "overview" | "surveys" | "analysis" | "map" | "export";
+type TabKey = "overview" | "surveys" | "analysis" | "map" | "export" | "sync";
 
 export default function Home() {
   const surveys = useSurveyStore((s) => s.surveys);
@@ -27,6 +30,7 @@ export default function Home() {
   const [editing, setEditing] = useState<SurveyRecord | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showSync, setShowSync] = useState(false);
 
   const handleEdit = (s: SurveyRecord) => {
     setEditing(s);
@@ -97,6 +101,7 @@ export default function Home() {
     { key: "map", label: "地图", icon: <Waves className="w-4 h-4" /> },
     { key: "analysis", label: "分析", icon: <Shell className="w-4 h-4" /> },
     { key: "export", label: "导出", icon: <Menu className="w-4 h-4" /> },
+    { key: "sync", label: "同步", icon: <RefreshCw className="w-4 h-4" /> },
   ];
 
   return (
@@ -136,6 +141,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
+            <SyncStatus onClick={() => setShowSync(true)} />
             <button
               onClick={() => {
                 setEditing(null);
@@ -342,6 +348,25 @@ export default function Home() {
         )}
 
         {activeTab === "export" && <ExportPanel surveys={surveys} />}
+
+        {activeTab === "sync" && (
+          <div className="card-glass p-5">
+            <h3 className="section-title">
+              <RefreshCw className="w-6 h-6 text-reef-400" />
+              离线数据同步
+            </h3>
+            <p className="text-sm text-ocean-300 mb-4">
+              在不同设备间同步调查数据。支持通过二维码、文件或蓝牙分享同步包，接收端自动合并，冲突时可逐条选择保留版本。
+            </p>
+            <button
+              onClick={() => setShowSync(true)}
+              className="btn-primary w-full py-4 text-base"
+            >
+              <RefreshCw className="w-5 h-5" />
+              打开同步面板
+            </button>
+          </div>
+        )}
       </main>
 
       <div className="fixed bottom-4 left-0 right-0 md:hidden z-20 px-4">
@@ -358,6 +383,7 @@ export default function Home() {
       </div>
 
       {showForm && <SurveyForm onClose={handleCloseForm} editing={editing} />}
+      {showSync && <SyncPanel onClose={() => setShowSync(false)} />}
     </div>
   );
 }

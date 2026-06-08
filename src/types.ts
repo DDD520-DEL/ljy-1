@@ -85,3 +85,64 @@ export interface DiversityIndices {
   speciesCount: number;
   totalIndividuals: number;
 }
+
+export type SyncStatus = "idle" | "exporting" | "importing" | "merging" | "conflict" | "success" | "error";
+
+export interface SyncState {
+  status: SyncStatus;
+  lastSyncAt: number | null;
+  lastSyncDevice: string | null;
+  pendingCount: number;
+  error: string | null;
+}
+
+export interface PhotoSyncData {
+  id: string;
+  surveyId?: string;
+  speciesId?: string;
+  dataUrl: string;
+  thumbnailUrl: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  caption?: string;
+  createdAt: number;
+}
+
+export interface SurveySyncData extends SurveyRecord {
+  updatedAt: number;
+}
+
+export interface SyncPackage {
+  version: number;
+  deviceId: string;
+  deviceName: string;
+  exportedAt: number;
+  surveys: SurveySyncData[];
+  photos: PhotoSyncData[];
+  checksum: string;
+}
+
+export interface DataConflict {
+  type: "survey" | "species" | "photo";
+  id: string;
+  localVersion: unknown;
+  remoteVersion: unknown;
+  localUpdatedAt: number;
+  remoteUpdatedAt: number;
+  description: string;
+}
+
+export interface ConflictResolution {
+  conflictId: string;
+  choice: "local" | "remote" | "merge";
+  mergedData?: unknown;
+}
+
+export interface MergeResult {
+  added: number;
+  updated: number;
+  conflicts: DataConflict[];
+  photosImported: number;
+  skipped: number;
+}
