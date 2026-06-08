@@ -8,11 +8,6 @@ import {
   Menu,
   X,
   RefreshCw,
-  Thermometer,
-  Droplets,
-  FlaskConical,
-  Wind,
-  CloudSun,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import SurveyForm from "@/components/SurveyForm";
@@ -23,17 +18,9 @@ import CommunityCharts from "@/components/CommunityCharts";
 import ExportPanel from "@/components/ExportPanel";
 import SyncPanel from "@/components/SyncPanel";
 import SyncStatus from "@/components/SyncStatus";
-import type { SurveyRecord, WeatherCondition } from "@/types";
-import { SEASON_LABEL, TIDE_LABEL, getSeason } from "@/lib/diversity";
+import CustomizableDashboard from "@/components/CustomizableDashboard";
+import type { SurveyRecord } from "@/types";
 import { cn } from "@/lib/utils";
-
-const WEATHER_LABEL: Record<WeatherCondition, string> = {
-  sunny: "晴天",
-  cloudy: "多云",
-  rainy: "雨天",
-  foggy: "雾天",
-  stormy: "暴风雨",
-};
 
 type TabKey = "overview" | "surveys" | "analysis" | "map" | "export" | "sync";
 
@@ -90,30 +77,6 @@ export default function Home() {
       totalIndividuals,
     };
   }, [surveys, allSpecies]);
-
-  const seasonStats = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const s of surveys) {
-      const season = getSeason(s.date);
-      map.set(season, (map.get(season) || 0) + 1);
-    }
-    return map;
-  }, [surveys]);
-
-  const tideStats = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const s of surveys) {
-      map.set(s.tideZone, (map.get(s.tideZone) || 0) + 1);
-    }
-    return map;
-  }, [surveys]);
-
-  const latestSurvey = useMemo(() => {
-    if (surveys.length === 0) return null;
-    return [...surveys].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    )[0];
-  }, [surveys]);
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: "总览", icon: <Activity className="w-4 h-4" /> },
@@ -239,161 +202,7 @@ export default function Home() {
               </div>
             </div>
 
-            {latestSurvey?.envFactors && (
-              <div className="card-glass p-5">
-                <h3 className="section-title">
-                  <FlaskConical className="w-6 h-6 text-reef-400" />
-                  最近一次调查环境参数
-                  <span className="ml-2 text-xs font-normal text-ocean-400">
-                    {latestSurvey.stationName} · {latestSurvey.date}
-                  </span>
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  {latestSurvey.envFactors.waterTemp !== undefined && (
-                    <div className="stat-card">
-                      <Thermometer className="w-6 h-6 mx-auto text-red-400 mb-1" />
-                      <div className="stat-value">
-                        {latestSurvey.envFactors.waterTemp.toFixed(1)}
-                      </div>
-                      <div className="stat-label">水温 (°C)</div>
-                    </div>
-                  )}
-                  {latestSurvey.envFactors.salinity !== undefined && (
-                    <div className="stat-card">
-                      <Droplets className="w-6 h-6 mx-auto text-ocean-400 mb-1" />
-                      <div className="stat-value">
-                        {latestSurvey.envFactors.salinity.toFixed(1)}
-                      </div>
-                      <div className="stat-label">盐度 (‰)</div>
-                    </div>
-                  )}
-                  {latestSurvey.envFactors.ph !== undefined && (
-                    <div className="stat-card">
-                      <FlaskConical className="w-6 h-6 mx-auto text-purple-400 mb-1" />
-                      <div className="stat-value">
-                        {latestSurvey.envFactors.ph.toFixed(2)}
-                      </div>
-                      <div className="stat-label">pH 值</div>
-                    </div>
-                  )}
-                  {latestSurvey.envFactors.dissolvedOxygen !== undefined && (
-                    <div className="stat-card">
-                      <Wind className="w-6 h-6 mx-auto text-cyan-400 mb-1" />
-                      <div className="stat-value">
-                        {latestSurvey.envFactors.dissolvedOxygen.toFixed(1)}
-                      </div>
-                      <div className="stat-label">溶解氧 (mg/L)</div>
-                    </div>
-                  )}
-                  {latestSurvey.envFactors.weather && (
-                    <div className="stat-card">
-                      <CloudSun className="w-6 h-6 mx-auto text-yellow-400 mb-1" />
-                      <div className="stat-value text-lg">
-                        {WEATHER_LABEL[latestSurvey.envFactors.weather]}
-                      </div>
-                      <div className="stat-label">天气</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {allSpecies.length > 0 && (
-              <DiversityIndices
-                species={allSpecies.map((v) => ({
-                  speciesId: v.name,
-                  scientificName: v.sci,
-                  commonName: v.name,
-                  count: v.count,
-                  coverage: v.coverage,
-                }))}
-              />
-            )}
-
-            {surveys.length > 0 && (
-              <div className="grid md:grid-cols-2 gap-5">
-                <div className="card-glass p-5">
-                  <h3 className="section-title">
-                    <Waves className="w-6 h-6 text-reef-400" />
-                    潮带分布
-                  </h3>
-                  <div className="space-y-3">
-                    {(["high", "mid", "low"] as const).map((tz) => {
-                      const count = tideStats.get(tz) || 0;
-                      const pct =
-                        surveys.length > 0 ? (count / surveys.length) * 100 : 0;
-                      return (
-                        <div key={tz}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-ocean-200">
-                              {TIDE_LABEL[tz]}
-                            </span>
-                            <span className="text-ocean-400">
-                              {count} ({pct.toFixed(0)}%)
-                            </span>
-                          </div>
-                          <div className="h-3 rounded-full bg-ocean-900/60 overflow-hidden">
-                            <div
-                              className={cn(
-                                "h-full rounded-full transition-all",
-                                tz === "high"
-                                  ? "bg-tide-high"
-                                  : tz === "mid"
-                                  ? "bg-tide-mid"
-                                  : "bg-tide-low"
-                              )}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="card-glass p-5">
-                  <h3 className="section-title">
-                    <Activity className="w-6 h-6 text-reef-400" />
-                    季节分布
-                  </h3>
-                  <div className="space-y-3">
-                    {(["spring", "summer", "autumn", "winter"] as const).map(
-                      (sn) => {
-                        const count = seasonStats.get(sn) || 0;
-                        const pct =
-                          surveys.length > 0
-                            ? (count / surveys.length) * 100
-                            : 0;
-                        const colors: Record<string, string> = {
-                          spring: "bg-green-500",
-                          summer: "bg-orange-500",
-                          autumn: "bg-red-500",
-                          winter: "bg-indigo-500",
-                        };
-                        return (
-                          <div key={sn}>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-ocean-200">
-                                {SEASON_LABEL[sn]}
-                              </span>
-                              <span className="text-ocean-400">
-                                {count} ({pct.toFixed(0)}%)
-                              </span>
-                            </div>
-                            <div className="h-3 rounded-full bg-ocean-900/60 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${colors[sn]}`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      }
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+            <CustomizableDashboard surveys={surveys} />
 
             <StationMap surveys={surveys} />
           </>
