@@ -16,9 +16,12 @@ export interface SpeciesRecord {
   commonName: string;
   count: number;
   coverage: number;
+  kingdom?: string;
   phylum?: string;
   className?: string;
+  order?: string;
   family?: string;
+  genus?: string;
 }
 
 export interface SurveyLocation {

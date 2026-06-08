@@ -244,16 +244,22 @@ export interface ClusterNode {
   leaf?: boolean;
 }
 
-export function hclust(distanceMatrix: number[][], labels: string[]): ClusterNode {
+export function hclust(
+  distanceMatrix: number[][],
+  labels: string[],
+  method: "average" | "complete" | "single" = "average"
+): ClusterNode {
   const n = distanceMatrix.length;
   if (n === 0) return { id: "empty", height: 0 };
   if (n === 1) return { id: "0", label: labels[0], height: 0, leaf: true };
 
   const clusters: ClusterNode[] = [];
   const active: boolean[] = [];
+  const clusterSize: number[] = [];
   for (let i = 0; i < n; i++) {
     clusters.push({ id: String(i), label: labels[i], height: 0, leaf: true });
     active.push(true);
+    clusterSize.push(1);
   }
 
   const dist: number[][] = distanceMatrix.map((row) => [...row]);
@@ -283,15 +289,26 @@ export function hclust(distanceMatrix: number[][], labels: string[]): ClusterNod
     };
     clusters.push(newNode);
     active.push(true);
+    clusterSize.push(clusterSize[a] + clusterSize[b]);
     active[a] = false;
     active[b] = false;
 
+    const sizeA = clusterSize[a];
+    const sizeB = clusterSize[b];
     const newRow: number[] = [];
     for (let k = 0; k < clusters.length - 1; k++) {
       if (!active[k]) {
         newRow.push(0);
       } else {
-        newRow.push(Math.max(dist[a][k], dist[b][k]));
+        let d: number;
+        if (method === "average") {
+          d = (dist[a][k] * sizeA + dist[b][k] * sizeB) / (sizeA + sizeB);
+        } else if (method === "complete") {
+          d = Math.max(dist[a][k], dist[b][k]);
+        } else {
+          d = Math.min(dist[a][k], dist[b][k]);
+        }
+        newRow.push(d);
       }
     }
     for (let k = 0; k < clusters.length - 1; k++) {

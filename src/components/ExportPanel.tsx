@@ -1,10 +1,133 @@
-import { Download, FileJson, FileSpreadsheet } from "lucide-react";
-import type { SurveyRecord } from "@/types";
+import { Download, FileJson, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import type { SurveyRecord, TideZone, SubstrateType, SpeciesRecord } from "@/types";
 import { useSurveyStore } from "@/store/surveyStore";
 import { SEASON_LABEL, TIDE_LABEL, SUBSTRATE_LABEL, getSeason } from "@/lib/diversity";
 
 interface ExportPanelProps {
   surveys: SurveyRecord[];
+}
+
+const TIDE_ZONES: TideZone[] = ["high", "mid", "low"];
+const SUBSTRATES: SubstrateType[] = [
+  "rocky",
+  "sandy",
+  "muddy",
+  "pebble",
+  "cobble",
+  "mixed",
+];
+
+const REQUIRED_SURVEY_FIELDS = [
+  "date",
+  "stationName",
+  "tideZone",
+  "quadratSize",
+  "substrateType",
+  "location",
+  "species",
+] as const;
+
+const REQUIRED_LOCATION_FIELDS = ["lat", "lng"] as const;
+
+const REQUIRED_SPECIES_FIELDS = [
+  "speciesId",
+  "scientificName",
+  "commonName",
+  "count",
+  "coverage",
+] as const;
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+export function validateSurveyRecord(
+  raw: unknown,
+  index: number
+): ValidationResult {
+  const errors: string[] = [];
+  const prefix = `第 ${index + 1} 条记录: `;
+
+  if (!raw || typeof raw !== "object") {
+    return { valid: false, errors: [`${prefix}不是有效的对象`] };
+  }
+
+  const obj = raw as Record<string, unknown>;
+
+  for (const field of REQUIRED_SURVEY_FIELDS) {
+    if (!(field in obj) || obj[field] === undefined || obj[field] === null) {
+      errors.push(`${prefix}缺少必填字段: ${field}`);
+    }
+  }
+
+  if (typeof obj.date !== "string" || !obj.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    errors.push(`${prefix}date 字段格式错误，应为 YYYY-MM-DD`);
+  }
+
+  if (typeof obj.stationName !== "string" || !obj.stationName.trim()) {
+    errors.push(`${prefix}stationName 不能为空字符串`);
+  }
+
+  if (!TIDE_ZONES.includes(obj.tideZone as TideZone)) {
+    errors.push(`${prefix}tideZone 值无效，应为 high/mid/low`);
+  }
+
+  if (typeof obj.quadratSize !== "string" || !obj.quadratSize.trim()) {
+    errors.push(`${prefix}quadratSize 不能为空`);
+  }
+
+  if (!SUBSTRATES.includes(obj.substrateType as SubstrateType)) {
+    errors.push(`${prefix}substrateType 值无效`);
+  }
+
+  if (obj.location && typeof obj.location === "object") {
+    const loc = obj.location as Record<string, unknown>;
+    for (const f of REQUIRED_LOCATION_FIELDS) {
+      if (!(f in loc)) {
+        errors.push(`${prefix}location 缺少字段: ${f}`);
+      } else if (typeof loc[f] !== "number") {
+        errors.push(`${prefix}location.${f} 必须为数字`);
+      }
+    }
+    if (typeof loc.lat === "number" && (loc.lat < -90 || loc.lat > 90)) {
+      errors.push(`${prefix}location.lat 超出有效范围 (-90 ~ 90)`);
+    }
+    if (typeof loc.lng === "number" && (loc.lng < -180 || loc.lng > 180)) {
+      errors.push(`${prefix}location.lng 超出有效范围 (-180 ~ 180)`);
+    }
+  }
+
+  if (obj.species) {
+    if (!Array.isArray(obj.species)) {
+      errors.push(`${prefix}species 必须为数组`);
+    } else {
+      (obj.species as unknown[]).forEach((spRaw, spIdx) => {
+        if (!spRaw || typeof spRaw !== "object") {
+          errors.push(`${prefix}species[${spIdx}] 不是有效对象`);
+          return;
+        }
+        const sp = spRaw as Record<string, unknown>;
+        for (const f of REQUIRED_SPECIES_FIELDS) {
+          if (!(f in sp)) {
+            errors.push(`${prefix}species[${spIdx}] 缺少字段: ${f}`);
+          }
+        }
+        if (typeof sp.count !== "number" || sp.count < 0) {
+          errors.push(`${prefix}species[${spIdx}].count 必须为非负整数`);
+        }
+        if (
+          typeof sp.coverage !== "number" ||
+          sp.coverage < 0 ||
+          sp.coverage > 100
+        ) {
+          errors.push(`${prefix}species[${spIdx}].coverage 必须在 0-100 之间`);
+        }
+      });
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
 }
 
 export function exportAsDarwinCore(surveys: SurveyRecord[]): string {
@@ -60,12 +183,12 @@ export function exportAsDarwinCore(surveys: SurveyRecord[]): string {
         season,
         `${survey.id}-${sp.speciesId}`,
         sp.scientificName,
-        "",
+        sp.kingdom || "",
         sp.phylum || "",
         sp.className || "",
-        "",
+        sp.order || "",
         sp.family || "",
-        "",
+        sp.genus || "",
         sp.commonName,
         String(sp.count),
         String(sp.coverage),
@@ -124,18 +247,46 @@ export default function ExportPanel({ surveys }: ExportPanelProps) {
     reader.onload = () => {
       try {
         const imported = JSON.parse(String(reader.result));
-        if (Array.isArray(imported)) {
-          const addSurvey = useSurveyStore.getState().addSurvey;
-          imported.forEach((s) => {
-            const { id, createdAt, ...rest } = s;
-            addSurvey(rest);
-          });
-          alert(`成功导入 ${imported.length} 条记录`);
-        } else {
-          alert("JSON 格式不正确");
+        if (!Array.isArray(imported)) {
+          alert("导入失败：JSON 根必须为数组");
+          return;
         }
-      } catch {
-        alert("导入失败，文件格式错误");
+
+        const allErrors: string[] = [];
+        const validRecords: SurveyRecord[] = [];
+        imported.forEach((raw, idx) => {
+          const result = validateSurveyRecord(raw, idx);
+          if (!result.valid) {
+            allErrors.push(...result.errors);
+          } else {
+            validRecords.push(raw as SurveyRecord);
+          }
+        });
+
+        if (allErrors.length > 0) {
+          alert(
+            `导入失败，存在 ${allErrors.length} 个问题：\n\n` +
+              allErrors.slice(0, 15).join("\n") +
+              (allErrors.length > 15 ? `\n... 还有 ${allErrors.length - 15} 条` : "")
+          );
+          return;
+        }
+
+        if (validRecords.length === 0) {
+          alert("未找到有效记录");
+          return;
+        }
+
+        const addSurvey = useSurveyStore.getState().addSurvey;
+        validRecords.forEach((s) => {
+          const { id, createdAt, ...rest } = s;
+          addSurvey(rest);
+        });
+        alert(`成功导入 ${validRecords.length} 条记录`);
+      } catch (err) {
+        alert(
+          `导入失败，文件格式错误：${err instanceof Error ? err.message : String(err)}`
+        );
       }
     };
     reader.readAsText(file);

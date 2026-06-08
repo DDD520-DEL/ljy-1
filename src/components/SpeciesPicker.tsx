@@ -51,9 +51,12 @@ export default function SpeciesPicker({
       commonName: item.commonName,
       count: 1,
       coverage: 0,
+      kingdom: item.kingdom,
       phylum: item.phylum,
       className: item.className,
+      order: item.order && item.order !== "null" ? item.order : "",
       family: item.family,
+      genus: item.genus,
     });
     onClose();
   };
