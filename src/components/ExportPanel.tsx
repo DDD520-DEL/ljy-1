@@ -209,8 +209,10 @@ export async function exportAsDarwinCoreWithPhotos(
   ];
 
   const rows: string[][] = [];
-  let photoIndex = 0;
   const photoExports: { path: string; blob: Blob }[] = [];
+  const photoIdToPath = new Map<string, string>();
+  const exportedPhotoIds = new Set<string>();
+  let photoIndex = 0;
 
   for (const survey of surveys) {
     const season = SEASON_LABEL[getSeason(survey.date)];
@@ -218,13 +220,22 @@ export async function exportAsDarwinCoreWithPhotos(
     const surveyPhotoPaths: string[] = [];
 
     for (const photo of surveyPhotos) {
-      const path = getPhotoPath(photo, photoIndex);
+      let path: string;
+      if (photoIdToPath.has(photo.id)) {
+        path = photoIdToPath.get(photo.id)!;
+      } else {
+        path = getPhotoPath(photo, photoIndex);
+        photoIdToPath.set(photo.id, path);
+        if (!exportedPhotoIds.has(photo.id)) {
+          photoExports.push({
+            path,
+            blob: dataUrlToBlob(photo.dataUrl),
+          });
+          exportedPhotoIds.add(photo.id);
+        }
+        photoIndex++;
+      }
       surveyPhotoPaths.push(path);
-      photoExports.push({
-        path,
-        blob: dataUrlToBlob(photo.dataUrl),
-      });
-      photoIndex++;
     }
 
     for (const sp of survey.species) {
@@ -233,8 +244,10 @@ export async function exportAsDarwinCoreWithPhotos(
       const speciesPhotoPaths: string[] = [];
       for (const photo of surveyPhotos) {
         if (photo.speciesId === sp.speciesId) {
-          const path = getPhotoPath(photo, photoExports.findIndex((p) => p.blob === dataUrlToBlob(photo.dataUrl)));
-          if (path) speciesPhotoPaths.push(path);
+          const path = photoIdToPath.get(photo.id);
+          if (path) {
+            speciesPhotoPaths.push(path);
+          }
         }
       }
 
