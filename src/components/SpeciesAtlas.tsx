@@ -5,7 +5,6 @@ import {
   Package,
   X,
   Waves,
-  Search,
   Grid3x3,
   List,
   Eye,
@@ -15,11 +14,12 @@ import {
 } from "lucide-react";
 import { useAtlasStore } from "@/store/atlasStore";
 import { getPhylumColor } from "@/data/speciesAtlas";
-import AtlasTaxonomyTree from "./AtlasTaxonomyTree";
+import AtlasLayout from "./AtlasLayout";
+import AtlasImage from "./AtlasImage";
 import SpeciesDetailPanel from "./SpeciesDetailPanel";
 import SpeciesComparePanel from "./SpeciesComparePanel";
 import AtlasPatchManager from "./AtlasPatchManager";
-import type { SpeciesAtlasItem } from "@/types";
+import type { SpeciesAtlasItem, AtlasImage as AtlasImageType } from "@/types";
 import { cn } from "@/lib/utils";
 import Fuse from "fuse.js";
 
@@ -110,6 +110,74 @@ export default function SpeciesAtlas({ onClose }: SpeciesAtlasProps) {
   const isInCompare = (id: string) => compareList.includes(id);
 
   const showPanel = panelMode !== "none";
+  const showMainView = panelMode === "none" || panelMode === "picker";
+
+  const speciesGrid = (
+    <>
+      {phylaCount.length > 1 && panelMode !== "picker" && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setTaxonFilter(null)}
+            className={cn(
+              "chip text-xs",
+              !taxonFilter && "ring-2 ring-reef-400/60"
+            )}
+          >
+            全部 ({filteredSpecies.length})
+          </button>
+          {phylaCount.map(([phylum, count]) => (
+            <button
+              key={phylum}
+              onClick={() => setTaxonFilter({ phylum })}
+              className={cn(
+                "chip text-xs",
+                taxonFilter?.phylum === phylum && "ring-2 ring-reef-400/60"
+              )}
+              style={{
+                borderColor: getPhylumColor(phylum) + "60",
+                color: getPhylumColor(phylum),
+              }}
+            >
+              {phylum} ({count})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filteredSpecies.length === 0 ? (
+        <div className="text-center py-16">
+          <Waves className="w-12 h-12 text-ocean-600 mx-auto mb-3" />
+          <p className="text-ocean-400">没有找到匹配的物种</p>
+        </div>
+      ) : viewMode === "grid" ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {filteredSpecies.map((s) => (
+            <SpeciesCard
+              key={s.id}
+              species={s}
+              onClick={() => handleSelectSpecies(s.id)}
+              onAddToCompare={() => handleAddToCompare(s.id)}
+              inCompare={isInCompare(s.id)}
+              onRemoveFromCompare={() => removeFromCompare(s.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredSpecies.map((s) => (
+            <SpeciesListItem
+              key={s.id}
+              species={s}
+              onClick={() => handleSelectSpecies(s.id)}
+              onAddToCompare={() => handleAddToCompare(s.id)}
+              inCompare={isInCompare(s.id)}
+              onRemoveFromCompare={() => removeFromCompare(s.id)}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-ocean-950/95 backdrop-blur-xl flex flex-col">
@@ -207,120 +275,43 @@ export default function SpeciesAtlas({ onClose }: SpeciesAtlasProps) {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        {panelMode === "none" && (
-          <div className="h-full flex">
-            <aside className="hidden md:block w-72 lg:w-80 border-r border-ocean-700/40 bg-ocean-950/40 flex-shrink-0">
-              <AtlasTaxonomyTree
-                onSelectSpecies={handleSelectSpecies}
-                selectedSpeciesId={selectedSpeciesId ?? undefined}
-                onFilterChange={setTaxonFilter}
-              />
-            </aside>
-
-            <main className="flex-1 overflow-y-auto">
-              <div className="p-4 space-y-4">
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ocean-400" />
-                    <input
-                      type="text"
-                      placeholder="搜索学名、中文名、科、门..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="input-field pl-12"
-                    />
-                  </div>
-                  <div className="md:hidden flex items-center gap-1 bg-ocean-800/50 rounded-xl p-1">
-                    <button
-                      onClick={() => setViewMode("grid")}
-                      className={cn(
-                        "p-2 rounded-lg transition-colors",
-                        viewMode === "grid"
-                          ? "bg-ocean-500 text-white"
-                          : "text-ocean-300 hover:text-white"
-                      )}
-                    >
-                      <Grid3x3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setViewMode("list")}
-                      className={cn(
-                        "p-2 rounded-lg transition-colors",
-                        viewMode === "list"
-                          ? "bg-ocean-500 text-white"
-                          : "text-ocean-300 hover:text-white"
-                      )}
-                    >
-                      <List className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {phylaCount.length > 1 && (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setTaxonFilter(null)}
-                      className={cn(
-                        "chip text-xs",
-                        !taxonFilter && "ring-2 ring-reef-400/60"
-                      )}
-                    >
-                      全部 ({filteredSpecies.length})
-                    </button>
-                    {phylaCount.map(([phylum, count]) => (
-                      <button
-                        key={phylum}
-                        onClick={() => setTaxonFilter({ phylum })}
-                        className={cn(
-                          "chip text-xs",
-                          taxonFilter?.phylum === phylum && "ring-2 ring-reef-400/60"
-                        )}
-                        style={{
-                          borderColor: getPhylumColor(phylum) + "60",
-                          color: getPhylumColor(phylum),
-                        }}
-                      >
-                        {phylum} ({count})
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {filteredSpecies.length === 0 ? (
-                  <div className="text-center py-16">
-                    <Waves className="w-12 h-12 text-ocean-600 mx-auto mb-3" />
-                    <p className="text-ocean-400">没有找到匹配的物种</p>
-                  </div>
-                ) : viewMode === "grid" ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                    {filteredSpecies.map((s) => (
-                      <SpeciesCard
-                        key={s.id}
-                        species={s}
-                        onClick={() => handleSelectSpecies(s.id)}
-                        onAddToCompare={() => handleAddToCompare(s.id)}
-                        inCompare={isInCompare(s.id)}
-                        onRemoveFromCompare={() => removeFromCompare(s.id)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {filteredSpecies.map((s) => (
-                      <SpeciesListItem
-                        key={s.id}
-                        species={s}
-                        onClick={() => handleSelectSpecies(s.id)}
-                        onAddToCompare={() => handleAddToCompare(s.id)}
-                        inCompare={isInCompare(s.id)}
-                        onRemoveFromCompare={() => removeFromCompare(s.id)}
-                      />
-                    ))}
-                  </div>
-                )}
+        {showMainView && (
+          <AtlasLayout
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder={panelMode === "picker" ? "搜索物种..." : "搜索学名、中文名、科、门..."}
+            onSelectSpecies={handleSelectSpecies}
+            onFilterChange={setTaxonFilter}
+            selectedSpeciesId={selectedSpeciesId ?? undefined}
+            headerExtra={
+              <div className="md:hidden flex items-center gap-1 bg-ocean-800/50 rounded-xl p-1">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={cn(
+                    "p-2 rounded-lg transition-colors",
+                    viewMode === "grid"
+                      ? "bg-ocean-500 text-white"
+                      : "text-ocean-300 hover:text-white"
+                  )}
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={cn(
+                    "p-2 rounded-lg transition-colors",
+                    viewMode === "list"
+                      ? "bg-ocean-500 text-white"
+                      : "text-ocean-300 hover:text-white"
+                  )}
+                >
+                  <List className="w-4 h-4" />
+                </button>
               </div>
-            </main>
-          </div>
+            }
+          >
+            {speciesGrid}
+          </AtlasLayout>
         )}
 
         {panelMode === "detail" && selectedSpeciesId && (
@@ -341,43 +332,6 @@ export default function SpeciesAtlas({ onClose }: SpeciesAtlasProps) {
 
         {panelMode === "patch" && (
           <AtlasPatchManager onClose={() => setPanelMode("none")} />
-        )}
-
-        {panelMode === "picker" && (
-          <div className="h-full flex">
-            <aside className="hidden md:block w-72 lg:w-80 border-r border-ocean-700/40 bg-ocean-950/40 flex-shrink-0">
-              <AtlasTaxonomyTree
-                onSelectSpecies={handleSelectSpecies}
-                onFilterChange={setTaxonFilter}
-              />
-            </aside>
-            <main className="flex-1 overflow-y-auto">
-              <div className="p-4 space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ocean-400" />
-                  <input
-                    type="text"
-                    placeholder="搜索物种..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="input-field pl-12"
-                  />
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                  {filteredSpecies.map((s) => (
-                    <SpeciesCard
-                      key={s.id}
-                      species={s}
-                      onClick={() => handleSelectSpecies(s.id)}
-                      onAddToCompare={() => handleAddToCompare(s.id)}
-                      inCompare={isInCompare(s.id)}
-                      onRemoveFromCompare={() => removeFromCompare(s.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </main>
-          </div>
         )}
       </div>
     </div>
@@ -406,18 +360,13 @@ function SpeciesCard({
       onClick={onClick}
     >
       <div className="aspect-square bg-ocean-950 relative overflow-hidden">
-        {species.thumbnailUrl ? (
-          <img
-            src={species.thumbnailUrl}
-            alt={species.commonName}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-ocean-600">
-            <Waves className="w-10 h-10" />
-          </div>
-        )}
+        <AtlasImage
+          image={species.thumbnail as AtlasImageType | undefined}
+          alt={species.commonName}
+          phylum={species.phylum}
+          commonName={species.commonName}
+          scientificName={species.scientificName}
+        />
         <div
           className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-current to-transparent opacity-60"
           style={{ color: getPhylumColor(species.phylum) }}
@@ -488,19 +437,14 @@ function SpeciesListItem({
       )}
       onClick={onClick}
     >
-      <div className="w-16 h-16 rounded-xl overflow-hidden bg-ocean-950 flex-shrink-0">
-        {species.thumbnailUrl ? (
-          <img
-            src={species.thumbnailUrl}
-            alt={species.commonName}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-ocean-600">
-            <Waves className="w-6 h-6" />
-          </div>
-        )}
+      <div className="w-16 h-16 rounded-xl overflow-hidden bg-ocean-950 flex-shrink-0 relative">
+        <AtlasImage
+          image={species.thumbnail as AtlasImageType | undefined}
+          alt={species.commonName}
+          phylum={species.phylum}
+          commonName={species.commonName}
+          scientificName={species.scientificName}
+        />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">

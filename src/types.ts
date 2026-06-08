@@ -185,6 +185,11 @@ export interface MorphologyTrait {
   unit?: string;
 }
 
+export interface AtlasImage {
+  src: string;
+  fallback: string;
+}
+
 export interface SpeciesAtlasItem {
   id: string;
   scientificName: string;
@@ -195,8 +200,9 @@ export interface SpeciesAtlasItem {
   order: string;
   family: string;
   genus: string;
+  thumbnail?: AtlasImage;
+  images?: AtlasImage[];
   thumbnailUrl?: string;
-  images?: string[];
   description: string;
   habitat: string;
   identificationKeys: string[];

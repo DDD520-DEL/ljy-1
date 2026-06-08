@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import { useAtlasStore } from "@/store/atlasStore";
 import { getPhylumColor } from "@/data/speciesAtlas";
-import type { SpeciesAtlasItem } from "@/types";
+import AtlasImage from "./AtlasImage";
+import type { AtlasImage as AtlasImageType } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface SpeciesDetailPanelProps {
@@ -42,21 +43,17 @@ export default function SpeciesDetailPanel({
   return (
     <div className="flex flex-col h-full">
       <div className="relative">
-        <div className="aspect-video w-full bg-ocean-950 overflow-hidden">
-          {species.thumbnailUrl ? (
-            <img
-              src={species.thumbnailUrl}
-              alt={species.commonName}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-ocean-600">
-              <Waves className="w-16 h-16" />
-            </div>
-          )}
+        <div className="aspect-video w-full bg-ocean-950 overflow-hidden relative">
+          <AtlasImage
+            image={species.thumbnail as AtlasImageType | undefined}
+            alt={species.commonName}
+            phylum={species.phylum}
+            commonName={species.commonName}
+            scientificName={species.scientificName}
+          />
         </div>
         <div
-          className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-ocean-950/80 to-transparent"
+          className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-ocean-950/80 to-transparent pointer-events-none"
         />
         <button
           onClick={onClose}
@@ -170,11 +167,12 @@ export default function SpeciesDetailPanel({
             <Section title="图鉴图片">
               <div className="grid grid-cols-3 gap-2">
                 {species.images.map((img, idx) => (
-                  <div key={idx} className="aspect-square rounded-lg overflow-hidden bg-ocean-900/50">
-                    <img
-                      src={img}
+                  <div key={idx} className="aspect-square rounded-lg overflow-hidden bg-ocean-900/50 relative">
+                    <AtlasImage
+                      image={img as AtlasImageType}
                       alt={`${species.commonName}-${idx + 1}`}
-                      className="w-full h-full object-cover"
+                      phylum={species.phylum}
+                      commonName={species.commonName}
                     />
                   </div>
                 ))}

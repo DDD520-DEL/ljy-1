@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { X, GitCompare, ArrowLeftRight, AlertCircle } from "lucide-react";
 import { useAtlasStore } from "@/store/atlasStore";
 import { getPhylumColor } from "@/data/speciesAtlas";
-import type { SpeciesAtlasItem } from "@/types";
+import AtlasImage from "./AtlasImage";
+import type { SpeciesAtlasItem, AtlasImage as AtlasImageType } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface SpeciesComparePanelProps {
@@ -352,14 +353,14 @@ function SpeciesHeaderCard({
       >
         <X className="w-4 h-4" />
       </button>
-      <div className="aspect-video rounded-lg overflow-hidden bg-ocean-950 mb-2">
-        {species.thumbnailUrl && (
-          <img
-            src={species.thumbnailUrl}
-            alt={species.commonName}
-            className="w-full h-full object-cover"
-          />
-        )}
+      <div className="aspect-video rounded-lg overflow-hidden bg-ocean-950 mb-2 relative">
+        <AtlasImage
+          image={species.thumbnail as AtlasImageType | undefined}
+          alt={species.commonName}
+          phylum={species.phylum}
+          commonName={species.commonName}
+          scientificName={species.scientificName}
+        />
       </div>
       <div>
         <h4 className="font-semibold text-reef-300 text-sm">{species.commonName}</h4>
