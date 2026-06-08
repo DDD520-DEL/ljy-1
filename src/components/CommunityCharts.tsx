@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { GitBranch, ScatterChart, Filter } from "lucide-react";
+import { GitBranch, ScatterChart, Filter, TrendingUp } from "lucide-react";
 import type { SurveyRecord, TideZone } from "@/types";
 import {
   calcBrayCurtisMatrix,
@@ -9,6 +9,7 @@ import {
   getSeason,
   SEASON_LABEL,
   TIDE_LABEL,
+  calcDiversityIndices,
 } from "@/lib/diversity";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +17,22 @@ interface CommunityChartsProps {
   surveys: SurveyRecord[];
 }
 
-type ChartMode = "pcoa" | "dendrogram";
+type ChartMode = "pcoa" | "dendrogram" | "correlation";
+
+type EnvFactorKey = "waterTemp" | "salinity" | "ph" | "dissolvedOxygen";
+type DiversityMetric = "shannonWiener" | "speciesCount";
+
+const ENV_FACTOR_LABEL: Record<EnvFactorKey, string> = {
+  waterTemp: "水温 (°C)",
+  salinity: "盐度 (‰)",
+  ph: "pH 值",
+  dissolvedOxygen: "溶解氧 (mg/L)",
+};
+
+const DIVERSITY_METRIC_LABEL: Record<DiversityMetric, string> = {
+  shannonWiener: "Shannon-Wiener 指数 (H')",
+  speciesCount: "物种数 (S)",
+};
 
 const tideColor = (zone: string) => {
   if (zone === "high") return "#0ea5e9";
@@ -31,9 +47,32 @@ const seasonColor = (s: string) => {
   return "#6366f1";
 };
 
+function pearsonCorrelation(xs: number[], ys: number[]): number {
+  const n = xs.length;
+  if (n < 2) return 0;
+  const meanX = xs.reduce((a, b) => a + b, 0) / n;
+  const meanY = ys.reduce((a, b) => a + b, 0) / n;
+  let num = 0;
+  let denX = 0;
+  let denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - meanX;
+    const dy = ys[i] - meanY;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX) * Math.sqrt(denY);
+  return den === 0 ? 0 : num / den;
+}
+
 export default function CommunityCharts({ surveys }: CommunityChartsProps) {
   const [mode, setMode] = useState<ChartMode>("pcoa");
   const [colorBy, setColorBy] = useState<"tide" | "season">("tide");
+  const [envFactor, setEnvFactor] = useState<EnvFactorKey>("waterTemp");
+  const [diversityMetric, setDiversityMetric] = useState<DiversityMetric>(
+    "shannonWiener"
+  );
 
   const data = useMemo(() => {
     if (surveys.length < 2) return null;
@@ -43,6 +82,25 @@ export default function CommunityCharts({ surveys }: CommunityChartsProps) {
     const dendro = layoutDendrogram(clusterRoot);
     return { bc, coords, clusterRoot, dendro };
   }, [surveys]);
+
+  const correlationData = useMemo(() => {
+    const points: { x: number; y: number; survey: SurveyRecord }[] = [];
+    for (const s of surveys) {
+      const envVal = s.envFactors?.[envFactor];
+      if (envVal === undefined || envVal === null) continue;
+      const indices = calcDiversityIndices(s.species);
+      const y =
+        diversityMetric === "shannonWiener"
+          ? indices.shannonWiener
+          : indices.speciesCount;
+      points.push({ x: envVal, y, survey: s });
+    }
+    if (points.length < 2) return { points: points, r: 0 };
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    const r = pearsonCorrelation(xs, ys);
+    return { points, r };
+  }, [surveys, envFactor, diversityMetric]);
 
   if (surveys.length < 2) {
     return (
@@ -62,7 +120,7 @@ export default function CommunityCharts({ surveys }: CommunityChartsProps) {
           <GitBranch className="w-6 h-6 text-reef-400" />
           群落结构对比分析
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex bg-ocean-800/50 rounded-xl p-1">
             <button
               onClick={() => setMode("pcoa")}
@@ -87,6 +145,18 @@ export default function CommunityCharts({ surveys }: CommunityChartsProps) {
             >
               <GitBranch className="w-4 h-4 inline mr-1" />
               聚类树状图
+            </button>
+            <button
+              onClick={() => setMode("correlation")}
+              className={cn(
+                "px-4 py-2 rounded-lg font-medium transition-all min-h-[40px]",
+                mode === "correlation"
+                  ? "bg-ocean-500 text-white"
+                  : "text-ocean-300 hover:text-white"
+              )}
+            >
+              <TrendingUp className="w-4 h-4 inline mr-1" />
+              环境相关性
             </button>
           </div>
 
@@ -262,6 +332,309 @@ export default function CommunityCharts({ surveys }: CommunityChartsProps) {
               </g>
             ))}
           </svg>
+        </div>
+      )}
+
+      {mode === "correlation" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-ocean-400" />
+              <span className="text-sm text-ocean-300">环境因子：</span>
+              <div className="flex bg-ocean-800/50 rounded-xl p-1 flex-wrap">
+                {(Object.keys(ENV_FACTOR_LABEL) as EnvFactorKey[]).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setEnvFactor(k)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium transition-all min-h-[36px]",
+                      envFactor === k
+                        ? "bg-reef-500 text-white"
+                        : "text-ocean-300 hover:text-white"
+                    )}
+                  >
+                    {ENV_FACTOR_LABEL[k]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-ocean-300">多样性指标：</span>
+              <div className="flex bg-ocean-800/50 rounded-xl p-1">
+                {(Object.keys(DIVERSITY_METRIC_LABEL) as DiversityMetric[]).map(
+                  (k) => (
+                    <button
+                      key={k}
+                      onClick={() => setDiversityMetric(k)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-sm font-medium transition-all min-h-[36px]",
+                        diversityMetric === k
+                          ? "bg-reef-500 text-white"
+                          : "text-ocean-300 hover:text-white"
+                      )}
+                    >
+                      {DIVERSITY_METRIC_LABEL[k]}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+
+          {correlationData.points.length < 2 ? (
+            <div className="card-glass p-8 text-center text-ocean-400">
+              <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p>至少需要 2 条包含该环境因子的调查记录进行相关性分析</p>
+            </div>
+          ) : (
+            <div>
+              <div
+                className="relative w-full bg-ocean-950/50 rounded-2xl border border-ocean-700/40 overflow-hidden"
+                style={{ height: 440 }}
+              >
+                <svg viewBox="0 0 600 440" className="w-full h-full">
+                  <defs>
+                    <pattern
+                      id="corrGrid"
+                      width="50"
+                      height="50"
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <path
+                        d="M 50 0 L 0 0 0 50"
+                        fill="none"
+                        stroke="rgba(14,165,233,0.1)"
+                        strokeWidth="1"
+                      />
+                    </pattern>
+                  </defs>
+                  <rect width="600" height="440" fill="url(#corrGrid)" />
+
+                  {(() => {
+                    const padL = 70;
+                    const padR = 30;
+                    const padT = 30;
+                    const padB = 60;
+                    const w = 600 - padL - padR;
+                    const h = 440 - padT - padB;
+
+                    const xs = correlationData.points.map((p) => p.x);
+                    const ys = correlationData.points.map((p) => p.y);
+                    const xMin = Math.min(...xs);
+                    const xMax = Math.max(...xs);
+                    const yMin = Math.min(...ys, 0);
+                    const yMax = Math.max(...ys);
+                    const xRange = Math.max(xMax - xMin, 0.01);
+                    const yRange = Math.max(yMax - yMin, 0.01);
+                    const xPad = xRange * 0.1;
+                    const yPad = yRange * 0.1;
+
+                    const mapX = (v: number) =>
+                      padL +
+                      ((v - (xMin - xPad)) / (xRange + 2 * xPad)) * w;
+                    const mapY = (v: number) =>
+                      padT +
+                      h -
+                      ((v - (yMin - yPad)) / (yRange + 2 * yPad)) * h;
+
+                    const ticks = 5;
+                    const xTickEls = [];
+                    for (let i = 0; i <= ticks; i++) {
+                      const val =
+                        xMin - xPad + ((xRange + 2 * xPad) * i) / ticks;
+                      const px = mapX(val);
+                      xTickEls.push(
+                        <g key={`xt-${i}`}>
+                          <line
+                            x1={px}
+                            y1={padT + h}
+                            x2={px}
+                            y2={padT + h + 5}
+                            stroke="rgba(148,163,184,0.5)"
+                            strokeWidth="1"
+                          />
+                          <text
+                            x={px}
+                            y={padT + h + 20}
+                            fill="#94a3b8"
+                            fontSize="10"
+                            textAnchor="middle"
+                          >
+                            {val.toFixed(1)}
+                          </text>
+                        </g>
+                      );
+                    }
+                    const yTickEls = [];
+                    for (let i = 0; i <= ticks; i++) {
+                      const val =
+                        yMin - yPad + ((yRange + 2 * yPad) * i) / ticks;
+                      const py = mapY(val);
+                      yTickEls.push(
+                        <g key={`yt-${i}`}>
+                          <line
+                            x1={padL - 5}
+                            y1={py}
+                            x2={padL}
+                            y2={py}
+                            stroke="rgba(148,163,184,0.5)"
+                            strokeWidth="1"
+                          />
+                          <text
+                            x={padL - 10}
+                            y={py + 4}
+                            fill="#94a3b8"
+                            fontSize="10"
+                            textAnchor="end"
+                          >
+                            {val.toFixed(2)}
+                          </text>
+                        </g>
+                      );
+                    }
+
+                    const meanX = xs.reduce((a, b) => a + b, 0) / xs.length;
+                    const meanY = ys.reduce((a, b) => a + b, 0) / ys.length;
+                    let slope = 0;
+                    let intercept = meanY;
+                    let num = 0;
+                    let den = 0;
+                    for (let i = 0; i < xs.length; i++) {
+                      num += (xs[i] - meanX) * (ys[i] - meanY);
+                      den += (xs[i] - meanX) ** 2;
+                    }
+                    if (den > 0) {
+                      slope = num / den;
+                      intercept = meanY - slope * meanX;
+                    }
+                    const lineX1 = xMin - xPad;
+                    const lineX2 = xMax + xPad;
+                    const lineY1 = slope * lineX1 + intercept;
+                    const lineY2 = slope * lineX2 + intercept;
+
+                    return (
+                      <>
+                        <line
+                          x1={padL}
+                          y1={padT}
+                          x2={padL}
+                          y2={padT + h}
+                          stroke="rgba(148,163,184,0.4)"
+                          strokeWidth="1.5"
+                        />
+                        <line
+                          x1={padL}
+                          y1={padT + h}
+                          x2={padL + w}
+                          y2={padT + h}
+                          stroke="rgba(148,163,184,0.4)"
+                          strokeWidth="1.5"
+                        />
+                        {xTickEls}
+                        {yTickEls}
+                        <line
+                          x1={mapX(lineX1)}
+                          y1={mapY(lineY1)}
+                          x2={mapX(lineX2)}
+                          y2={mapY(lineY2)}
+                          stroke="#f59e0b"
+                          strokeWidth="2"
+                          strokeDasharray="6,4"
+                          opacity="0.8"
+                        />
+                        {correlationData.points.map((p, i) => (
+                          <g key={i}>
+                            <circle
+                              cx={mapX(p.x)}
+                              cy={mapY(p.y)}
+                              r={10}
+                              fill={tideColor(p.survey.tideZone)}
+                              opacity="0.25"
+                            />
+                            <circle
+                              cx={mapX(p.x)}
+                              cy={mapY(p.y)}
+                              r={6}
+                              fill={tideColor(p.survey.tideZone)}
+                              stroke="white"
+                              strokeWidth="2"
+                            />
+                            <text
+                              x={mapX(p.x) + 10}
+                              y={mapY(p.y) - 6}
+                              fill="#f0f9ff"
+                              fontSize="10"
+                              fontWeight="500"
+                            >
+                              {p.survey.stationName}
+                            </text>
+                          </g>
+                        ))}
+                        <text
+                          x={padL + w / 2}
+                          y={padT + h + 45}
+                          fill="#94a3b8"
+                          fontSize="12"
+                          textAnchor="middle"
+                          fontWeight="500"
+                        >
+                          {ENV_FACTOR_LABEL[envFactor]}
+                        </text>
+                        <text
+                          x={18}
+                          y={padT + h / 2}
+                          fill="#94a3b8"
+                          fontSize="12"
+                          textAnchor="middle"
+                          fontWeight="500"
+                          transform={`rotate(-90, 18, ${padT + h / 2})`}
+                        >
+                          {DIVERSITY_METRIC_LABEL[diversityMetric]}
+                        </text>
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
+
+              <div className="flex flex-wrap gap-4 mt-4 items-center justify-center">
+                <div className="card-glass px-5 py-3">
+                  <div className="text-xs text-ocean-400">Pearson 相关系数 (r)</div>
+                  <div
+                    className={cn(
+                      "text-2xl font-bold",
+                      Math.abs(correlationData.r) >= 0.7
+                        ? "text-green-400"
+                        : Math.abs(correlationData.r) >= 0.4
+                        ? "text-yellow-400"
+                        : "text-ocean-300"
+                    )}
+                  >
+                    {correlationData.r >= 0 ? "+" : ""}
+                    {correlationData.r.toFixed(3)}
+                  </div>
+                </div>
+                <div className="card-glass px-5 py-3">
+                  <div className="text-xs text-ocean-400">有效样本数</div>
+                  <div className="text-2xl font-bold text-reef-300">
+                    {correlationData.points.length}
+                  </div>
+                </div>
+                <span className="chip">
+                  <span className="inline-block w-3 h-3 rounded-full bg-tide-high mr-2"></span>
+                  高潮带
+                </span>
+                <span className="chip">
+                  <span className="inline-block w-3 h-3 rounded-full bg-tide-mid mr-2"></span>
+                  中潮带
+                </span>
+                <span className="chip">
+                  <span className="inline-block w-3 h-3 rounded-full bg-tide-low mr-2"></span>
+                  低潮带
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -10,6 +10,16 @@ export type SubstrateType =
 
 export type Season = "spring" | "summer" | "autumn" | "winter";
 
+export type WeatherCondition = "sunny" | "cloudy" | "rainy" | "foggy" | "stormy";
+
+export interface EnvironmentalFactors {
+  waterTemp?: number;
+  salinity?: number;
+  ph?: number;
+  dissolvedOxygen?: number;
+  weather?: WeatherCondition;
+}
+
 export interface PhotoRecord {
   id: string;
   surveyId?: string;
@@ -52,6 +62,7 @@ export interface SurveyRecord {
   substrateType: SubstrateType;
   location: SurveyLocation;
   species: SpeciesRecord[];
+  envFactors?: EnvironmentalFactors;
   notes?: string;
   photoIds?: string[];
   createdAt: number;

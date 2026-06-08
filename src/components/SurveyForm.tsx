@@ -13,6 +13,11 @@ import {
   Save,
   X,
   Camera as CameraIcon,
+  Thermometer,
+  Droplets,
+  FlaskConical,
+  Wind,
+  CloudSun,
 } from "lucide-react";
 import type {
   SurveyRecord,
@@ -20,6 +25,7 @@ import type {
   SubstrateType,
   SpeciesRecord,
   PhotoRecord,
+  WeatherCondition,
 } from "@/types";
 import { SUBSTRATE_LABEL, TIDE_LABEL } from "@/lib/diversity";
 import { useSurveyStore } from "@/store/surveyStore";
@@ -50,6 +56,20 @@ const SUBSTRATE_OPTIONS: SubstrateType[] = [
   "mixed",
 ];
 const QUADRAT_OPTIONS = ["0.25×0.25m", "0.5×0.5m", "1×1m", "2×2m", "5×5m"];
+const WEATHER_OPTIONS: WeatherCondition[] = [
+  "sunny",
+  "cloudy",
+  "rainy",
+  "foggy",
+  "stormy",
+];
+const WEATHER_LABEL: Record<WeatherCondition, string> = {
+  sunny: "晴天",
+  cloudy: "多云",
+  rainy: "雨天",
+  foggy: "雾天",
+  stormy: "暴风雨",
+};
 
 export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const addSurvey = useSurveyStore((s) => s.addSurvey);
@@ -64,6 +84,23 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   );
   const [lat, setLat] = useState(String(editing?.location.lat || 30.0));
   const [lng, setLng] = useState(String(editing?.location.lng || 121.0));
+  const [waterTemp, setWaterTemp] = useState<string>(
+    editing?.envFactors?.waterTemp !== undefined ? String(editing.envFactors.waterTemp) : ""
+  );
+  const [salinity, setSalinity] = useState<string>(
+    editing?.envFactors?.salinity !== undefined ? String(editing.envFactors.salinity) : ""
+  );
+  const [ph, setPh] = useState<string>(
+    editing?.envFactors?.ph !== undefined ? String(editing.envFactors.ph) : ""
+  );
+  const [dissolvedOxygen, setDissolvedOxygen] = useState<string>(
+    editing?.envFactors?.dissolvedOxygen !== undefined
+      ? String(editing.envFactors.dissolvedOxygen)
+      : ""
+  );
+  const [weather, setWeather] = useState<WeatherCondition | undefined>(
+    editing?.envFactors?.weather
+  );
   const [notes, setNotes] = useState(editing?.notes || "");
   const [species, setSpecies] = useState<SpeciesRecord[]>(editing?.species || []);
   const [showPicker, setShowPicker] = useState(false);
@@ -233,6 +270,17 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
         };
       });
 
+    const envFactors = {
+      waterTemp: waterTemp ? parseFloat(waterTemp) : undefined,
+      salinity: salinity ? parseFloat(salinity) : undefined,
+      ph: ph ? parseFloat(ph) : undefined,
+      dissolvedOxygen: dissolvedOxygen ? parseFloat(dissolvedOxygen) : undefined,
+      weather,
+    };
+    const hasEnvFactors = Object.values(envFactors).some(
+      (v) => v !== undefined
+    );
+
     const payload = {
       date,
       stationName: stationName.trim(),
@@ -241,6 +289,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       substrateType,
       location: { lat: latNum, lng: lngNum },
       species: finalSpecies,
+      envFactors: hasEnvFactors ? envFactors : undefined,
       notes: notes.trim() || undefined,
       photoIds: surveyPhotos.map((p) => p.id),
     };
@@ -399,6 +448,90 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
             >
               <MapPin className="w-4 h-4" /> 获取当前位置
             </button>
+          </div>
+
+          <div className="card-glass p-4 space-y-3">
+            <h4 className="text-sm font-semibold text-reef-300 flex items-center gap-2">
+              <FlaskConical className="w-4 h-4" /> 环境因子
+            </h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label-text flex items-center gap-1">
+                  <Thermometer className="w-4 h-4" /> 水温 (°C)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={waterTemp}
+                  onChange={(e) => setWaterTemp(e.target.value)}
+                  placeholder="如：22.5"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="label-text flex items-center gap-1">
+                  <Droplets className="w-4 h-4" /> 盐度 (‰)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={salinity}
+                  onChange={(e) => setSalinity(e.target.value)}
+                  placeholder="如：30.0"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="label-text flex items-center gap-1">
+                  <FlaskConical className="w-4 h-4" /> pH 值
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  max={14}
+                  value={ph}
+                  onChange={(e) => setPh(e.target.value)}
+                  placeholder="如：8.10"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="label-text flex items-center gap-1">
+                  <Wind className="w-4 h-4" /> 溶解氧 (mg/L)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={dissolvedOxygen}
+                  onChange={(e) => setDissolvedOxygen(e.target.value)}
+                  placeholder="如：6.5"
+                  className="input-field"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="label-text flex items-center gap-1">
+                <CloudSun className="w-4 h-4" /> 天气状况
+              </label>
+              <div className="grid grid-cols-5 gap-1">
+                {WEATHER_OPTIONS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => setWeather(weather === w ? undefined : w)}
+                    className={cn(
+                      "py-2 px-1 rounded-lg text-xs font-medium transition-all border min-h-[40px]",
+                      weather === w
+                        ? "bg-reef-500/30 border-reef-500 text-ocean-100"
+                        : "bg-ocean-800/30 border-ocean-700/40 text-ocean-300 hover:text-white"
+                    )}
+                  >
+                    {WEATHER_LABEL[w]}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div>
