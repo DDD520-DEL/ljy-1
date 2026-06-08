@@ -10,6 +10,19 @@ export type SubstrateType =
 
 export type Season = "spring" | "summer" | "autumn" | "winter";
 
+export interface PhotoRecord {
+  id: string;
+  surveyId?: string;
+  speciesId?: string;
+  dataUrl: string;
+  thumbnailUrl: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  caption?: string;
+  createdAt: number;
+}
+
 export interface SpeciesRecord {
   speciesId: string;
   scientificName: string;
@@ -22,6 +35,7 @@ export interface SpeciesRecord {
   order?: string;
   family?: string;
   genus?: string;
+  photoIds?: string[];
 }
 
 export interface SurveyLocation {
@@ -39,6 +53,7 @@ export interface SurveyRecord {
   location: SurveyLocation;
   species: SpeciesRecord[];
   notes?: string;
+  photoIds?: string[];
   createdAt: number;
 }
 

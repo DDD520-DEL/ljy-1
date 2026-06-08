@@ -1,7 +1,15 @@
-import { Download, FileJson, FileSpreadsheet, AlertTriangle } from "lucide-react";
-import type { SurveyRecord, TideZone, SubstrateType, SpeciesRecord } from "@/types";
+import { useState } from "react";
+import {
+  Download,
+  FileJson,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Loader2,
+} from "lucide-react";
+import type { SurveyRecord, TideZone, SubstrateType, SpeciesRecord, PhotoRecord } from "@/types";
 import { useSurveyStore } from "@/store/surveyStore";
 import { SEASON_LABEL, TIDE_LABEL, SUBSTRATE_LABEL, getSeason } from "@/lib/diversity";
+import { getAllPhotos, clearAllPhotos, getPhotosBySurvey } from "@/lib/photoStore";
 
 interface ExportPanelProps {
   surveys: SurveyRecord[];
@@ -130,6 +138,149 @@ export function validateSurveyRecord(
   return { valid: errors.length === 0, errors };
 }
 
+function dataUrlToBlob(dataUrl: string): Blob {
+  const arr = dataUrl.split(",");
+  const mime = arr[0].match(/:(.*?);/)?.[1] || "image/jpeg";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+function getPhotoExtension(mimeType: string): string {
+  if (mimeType === "image/png") return ".png";
+  if (mimeType === "image/gif") return ".gif";
+  if (mimeType === "image/webp") return ".webp";
+  return ".jpg";
+}
+
+function getPhotoPath(photo: PhotoRecord, index: number): string {
+  const ext = getPhotoExtension(photo.mimeType);
+  const safeSurveyId = (photo.surveyId || "unknown").replace(/[^a-zA-Z0-9-_]/g, "_");
+  return `photos/${safeSurveyId}/photo_${index.toString().padStart(3, "0")}${ext}`;
+}
+
+export async function exportAsDarwinCoreWithPhotos(
+  surveys: SurveyRecord[]
+): Promise<{ csv: string; photos: { path: string; blob: Blob }[] }> {
+  const allPhotos: PhotoRecord[] = [];
+  const surveyPhotoMap = new Map<string, PhotoRecord[]>();
+
+  for (const survey of surveys) {
+    const photos = await getPhotosBySurvey(survey.id);
+    if (photos.length > 0) {
+      surveyPhotoMap.set(survey.id, photos);
+      allPhotos.push(...photos);
+    }
+  }
+
+  const headers = [
+    "eventID",
+    "eventDate",
+    "eventTime",
+    "samplingProtocol",
+    "sampleSizeValue",
+    "sampleSizeUnit",
+    "locationID",
+    "locality",
+    "decimalLatitude",
+    "decimalLongitude",
+    "geodeticDatum",
+    "habitat",
+    "verbatimHabitat",
+    "season",
+    "occurrenceID",
+    "scientificName",
+    "kingdom",
+    "phylum",
+    "class",
+    "order",
+    "family",
+    "genus",
+    "commonName",
+    "individualCount",
+    "organismQuantity",
+    "organismQuantityType",
+    "basisOfRecord",
+    "associatedMedia",
+  ];
+
+  const rows: string[][] = [];
+  let photoIndex = 0;
+  const photoExports: { path: string; blob: Blob }[] = [];
+
+  for (const survey of surveys) {
+    const season = SEASON_LABEL[getSeason(survey.date)];
+    const surveyPhotos = surveyPhotoMap.get(survey.id) || [];
+    const surveyPhotoPaths: string[] = [];
+
+    for (const photo of surveyPhotos) {
+      const path = getPhotoPath(photo, photoIndex);
+      surveyPhotoPaths.push(path);
+      photoExports.push({
+        path,
+        blob: dataUrlToBlob(photo.dataUrl),
+      });
+      photoIndex++;
+    }
+
+    for (const sp of survey.species) {
+      if (sp.count === 0 && sp.coverage === 0) continue;
+
+      const speciesPhotoPaths: string[] = [];
+      for (const photo of surveyPhotos) {
+        if (photo.speciesId === sp.speciesId) {
+          const path = getPhotoPath(photo, photoExports.findIndex((p) => p.blob === dataUrlToBlob(photo.dataUrl)));
+          if (path) speciesPhotoPaths.push(path);
+        }
+      }
+
+      const allMediaPaths = [...new Set([...surveyPhotoPaths, ...speciesPhotoPaths])];
+
+      rows.push([
+        survey.id,
+        survey.date,
+        "",
+        "潮间带样方调查",
+        survey.quadratSize,
+        "样方",
+        survey.stationName,
+        survey.stationName,
+        String(survey.location.lat),
+        String(survey.location.lng),
+        "WGS84",
+        `潮间带-${TIDE_LABEL[survey.tideZone]}-${SUBSTRATE_LABEL[survey.substrateType]}`,
+        `${TIDE_LABEL[survey.tideZone]} ${SUBSTRATE_LABEL[survey.substrateType]}`,
+        season,
+        `${survey.id}-${sp.speciesId}`,
+        sp.scientificName,
+        sp.kingdom || "",
+        sp.phylum || "",
+        sp.className || "",
+        sp.order || "",
+        sp.family || "",
+        sp.genus || "",
+        sp.commonName,
+        String(sp.count),
+        String(sp.coverage),
+        "盖度百分比%",
+        "HumanObservation",
+        allMediaPaths.join(" | "),
+      ]);
+    }
+  }
+
+  const csv =
+    headers.join(",") +
+    "\n" +
+    rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+
+  return { csv, photos: photoExports };
+}
+
 export function exportAsDarwinCore(surveys: SurveyRecord[]): string {
   const headers = [
     "eventID",
@@ -206,11 +357,7 @@ export function exportAsDarwinCore(surveys: SurveyRecord[]): string {
 }
 
 export function exportAsJSON(surveys: SurveyRecord[]): string {
-  return JSON.stringify(
-    surveys,
-    null,
-    2
-  );
+  return JSON.stringify(surveys, null, 2);
 }
 
 function downloadFile(content: string, filename: string, mime: string) {
@@ -225,8 +372,20 @@ function downloadFile(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function ExportPanel({ surveys }: ExportPanelProps) {
   const clearAll = useSurveyStore((s) => s.clearAll);
+  const [exporting, setExporting] = useState(false);
 
   const handleExportDwC = () => {
     if (surveys.length === 0) return;
@@ -234,10 +393,70 @@ export default function ExportPanel({ surveys }: ExportPanelProps) {
     downloadFile(csv, `intertidal-surveys-dwca-${Date.now()}.csv`, "text/csv;charset=utf-8");
   };
 
+  const handleExportDwCWithPhotos = async () => {
+    if (surveys.length === 0) return;
+    setExporting(true);
+    try {
+      const { csv, photos } = await exportAsDarwinCoreWithPhotos(surveys);
+      const timestamp = Date.now();
+
+      downloadFile(csv, `intertidal-surveys-dwca-${timestamp}.csv`, "text/csv;charset=utf-8");
+
+      for (const photo of photos) {
+        const filename = photo.path.split("/").pop() || `photo-${Date.now()}.jpg`;
+        downloadBlob(photo.blob, filename);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      if (photos.length > 0) {
+        alert(
+          `已导出 ${surveys.length} 条记录和 ${photos.length} 张照片。\n` +
+            `CSV 文件包含 associatedMedia 字段，照片文件单独下载。\n` +
+            `建议将所有照片放入 photos/ 目录中，与 CSV 文件同级。`
+        );
+      }
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("导出失败，请重试");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleExportJSON = () => {
     if (surveys.length === 0) return;
     const json = exportAsJSON(surveys);
     downloadFile(json, `intertidal-surveys-${Date.now()}.json`, "application/json;charset=utf-8");
+  };
+
+  const handleExportPhotosOnly = async () => {
+    if (surveys.length === 0) return;
+    setExporting(true);
+    try {
+      const allPhotos = await getAllPhotos();
+      const surveyIds = new Set(surveys.map((s) => s.id));
+      const filteredPhotos = allPhotos.filter((p) => p.surveyId && surveyIds.has(p.surveyId));
+
+      if (filteredPhotos.length === 0) {
+        alert("没有找到关联的照片");
+        return;
+      }
+
+      for (let i = 0; i < filteredPhotos.length; i++) {
+        const photo = filteredPhotos[i];
+        const path = getPhotoPath(photo, i);
+        const filename = path.split("/").pop() || `photo-${i}.jpg`;
+        downloadBlob(dataUrlToBlob(photo.dataUrl), filename);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      alert(`已导出 ${filteredPhotos.length} 张照片`);
+    } catch (err) {
+      console.error("Photo export failed:", err);
+      alert("照片导出失败，请重试");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -293,6 +512,18 @@ export default function ExportPanel({ surveys }: ExportPanelProps) {
     e.target.value = "";
   };
 
+  const handleClearAll = async () => {
+    if (confirm("确定要清空所有调查数据和照片吗？此操作不可撤销。")) {
+      try {
+        await clearAllPhotos();
+        clearAll();
+      } catch (err) {
+        console.error("Clear all failed:", err);
+        alert("清空失败，请重试");
+      }
+    }
+  };
+
   return (
     <div className="card-glass p-5">
       <h3 className="section-title">
@@ -303,7 +534,7 @@ export default function ExportPanel({ surveys }: ExportPanelProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           onClick={handleExportDwC}
-          disabled={surveys.length === 0}
+          disabled={surveys.length === 0 || exporting}
           className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed text-left"
         >
           <FileSpreadsheet className="w-5 h-5 flex-shrink-0" />
@@ -316,8 +547,26 @@ export default function ExportPanel({ surveys }: ExportPanelProps) {
         </button>
 
         <button
+          onClick={handleExportDwCWithPhotos}
+          disabled={surveys.length === 0 || exporting}
+          className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed text-left bg-reef-600 hover:bg-reef-700"
+        >
+          {exporting ? (
+            <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin" />
+          ) : (
+            <ImageIcon className="w-5 h-5 flex-shrink-0" />
+          )}
+          <div className="text-left">
+            <div className="font-semibold">DwC + 照片导出</div>
+            <div className="text-xs font-normal opacity-80">
+              CSV + 照片文件，含 associatedMedia 引用
+            </div>
+          </div>
+        </button>
+
+        <button
           onClick={handleExportJSON}
-          disabled={surveys.length === 0}
+          disabled={surveys.length === 0 || exporting}
           className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed text-left"
         >
           <FileJson className="w-5 h-5 flex-shrink-0" />
@@ -325,6 +574,24 @@ export default function ExportPanel({ surveys }: ExportPanelProps) {
             <div className="font-semibold">JSON 备份</div>
             <div className="text-xs font-normal opacity-80">
               完整数据，可重新导入
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={handleExportPhotosOnly}
+          disabled={surveys.length === 0 || exporting}
+          className="btn-ghost disabled:opacity-50 disabled:cursor-not-allowed text-left"
+        >
+          {exporting ? (
+            <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin" />
+          ) : (
+            <ImageIcon className="w-5 h-5 flex-shrink-0" />
+          )}
+          <div className="text-left">
+            <div className="font-semibold">仅导出照片</div>
+            <div className="text-xs font-normal opacity-80">
+              单独导出所有现场照片
             </div>
           </div>
         </button>
@@ -352,14 +619,11 @@ export default function ExportPanel({ surveys }: ExportPanelProps) {
             当前共有 <span className="text-reef-300 font-bold">{surveys.length}</span> 条调查记录
           </p>
           <button
-            onClick={() => {
-              if (confirm("确定要清空所有调查数据吗？此操作不可撤销。")) {
-                clearAll();
-              }
-            }}
-            className="text-red-400 text-xs hover:text-red-300 underline"
+            onClick={handleClearAll}
+            disabled={exporting}
+            className="text-red-400 text-xs hover:text-red-300 underline disabled:opacity-50"
           >
-            清空所有数据
+            清空所有数据和照片
           </button>
         </div>
       )}

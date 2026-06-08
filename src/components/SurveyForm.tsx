@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Plus,
   Minus,
@@ -12,17 +12,27 @@ import {
   StickyNote,
   Save,
   X,
+  Camera as CameraIcon,
 } from "lucide-react";
 import type {
   SurveyRecord,
   TideZone,
   SubstrateType,
   SpeciesRecord,
+  PhotoRecord,
 } from "@/types";
 import { SUBSTRATE_LABEL, TIDE_LABEL } from "@/lib/diversity";
 import { useSurveyStore } from "@/store/surveyStore";
+import {
+  getPhotosBySurvey,
+  getPhotosBySpecies,
+  deletePhoto,
+  updatePhoto,
+} from "@/lib/photoStore";
 import SpeciesPicker from "./SpeciesPicker";
 import DiversityIndices from "./DiversityIndices";
+import PhotoCapture from "./PhotoCapture";
+import PhotoGrid from "./PhotoGrid";
 import { cn } from "@/lib/utils";
 
 interface SurveyFormProps {
@@ -58,6 +68,39 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const [species, setSpecies] = useState<SpeciesRecord[]>(editing?.species || []);
   const [showPicker, setShowPicker] = useState(false);
 
+  const [surveyPhotos, setSurveyPhotos] = useState<PhotoRecord[]>([]);
+  const [speciesPhotos, setSpeciesPhotos] = useState<Map<string, PhotoRecord[]>>(
+    new Map()
+  );
+  const [tempSurveyId] = useState(
+    () => `temp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+  );
+
+  useEffect(() => {
+    if (editing) {
+      loadExistingPhotos(editing.id);
+    }
+  }, [editing]);
+
+  const loadExistingPhotos = async (surveyId: string) => {
+    try {
+      const sPhotos = await getPhotosBySurvey(surveyId);
+      setSurveyPhotos(sPhotos.sort((a, b) => b.createdAt - a.createdAt));
+
+      const speciesPhotoMap = new Map<string, PhotoRecord[]>();
+      for (const sp of editing?.species || []) {
+        const spPhotos = await getPhotosBySpecies(sp.speciesId);
+        const filtered = spPhotos.filter((p) => p.surveyId === surveyId);
+        if (filtered.length > 0) {
+          speciesPhotoMap.set(sp.speciesId, filtered);
+        }
+      }
+      setSpeciesPhotos(speciesPhotoMap);
+    } catch (err) {
+      console.error("Failed to load existing photos:", err);
+    }
+  };
+
   const getCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
       alert("浏览器不支持定位");
@@ -73,7 +116,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   }, []);
 
   const handleAddSpecies = (sp: SpeciesRecord) => {
-    setSpecies((prev) => [...prev, sp]);
+    setSpecies((prev) => [...prev, { ...sp, photoIds: [] }]);
   };
 
   const updateSpeciesCount = (index: number, delta: number) => {
@@ -92,11 +135,83 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
     );
   };
 
-  const removeSpecies = (index: number) => {
+  const removeSpecies = async (index: number) => {
+    const sp = species[index];
+    const spPhotos = speciesPhotos.get(sp.speciesId) || [];
+    for (const photo of spPhotos) {
+      try {
+        await deletePhoto(photo.id);
+      } catch (err) {
+        console.error("Failed to delete species photo:", err);
+      }
+    }
+    setSpeciesPhotos((prev) => {
+      const next = new Map(prev);
+      next.delete(sp.speciesId);
+      return next;
+    });
     setSpecies((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
+  const handleSurveyPhotoAdded = (photo: PhotoRecord) => {
+    setSurveyPhotos((prev) => [photo, ...prev]);
+  };
+
+  const handleSpeciesPhotoAdded = (speciesId: string, photo: PhotoRecord) => {
+    setSpeciesPhotos((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(speciesId) || [];
+      next.set(speciesId, [photo, ...existing]);
+      return next;
+    });
+  };
+
+  const handleDeleteSurveyPhoto = async (photoId: string) => {
+    try {
+      await deletePhoto(photoId);
+      setSurveyPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    } catch (err) {
+      console.error("Failed to delete photo:", err);
+    }
+  };
+
+  const handleDeleteSpeciesPhoto = async (
+    speciesId: string,
+    photoId: string
+  ) => {
+    try {
+      await deletePhoto(photoId);
+      setSpeciesPhotos((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(speciesId) || [];
+        next.set(speciesId, existing.filter((p) => p.id !== photoId));
+        return next;
+      });
+    } catch (err) {
+      console.error("Failed to delete species photo:", err);
+    }
+  };
+
+  const updatePhotosWithSurveyId = async (surveyId: string) => {
+    const allPhotos: PhotoRecord[] = [
+      ...surveyPhotos,
+      ...Array.from(speciesPhotos.values()).flat(),
+    ];
+
+    for (const photo of allPhotos) {
+      const updates: Partial<PhotoRecord> = { surveyId };
+      if (photo.surveyId?.startsWith("temp-")) {
+        updates.surveyId = surveyId;
+      }
+      try {
+        await updatePhoto(photo.id, updates);
+      } catch (err) {
+        console.error("Failed to update photo surveyId:", err);
+      }
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!stationName.trim()) {
       alert("请输入站位名称");
       return;
@@ -108,6 +223,16 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       return;
     }
 
+    const finalSpecies = species
+      .filter((s) => s.count > 0 || s.coverage > 0)
+      .map((s) => {
+        const spPhotos = speciesPhotos.get(s.speciesId) || [];
+        return {
+          ...s,
+          photoIds: spPhotos.map((p) => p.id),
+        };
+      });
+
     const payload = {
       date,
       stationName: stationName.trim(),
@@ -115,19 +240,35 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       quadratSize,
       substrateType,
       location: { lat: latNum, lng: lngNum },
-      species: species.filter((s) => s.count > 0 || s.coverage > 0),
+      species: finalSpecies,
       notes: notes.trim() || undefined,
+      photoIds: surveyPhotos.map((p) => p.id),
     };
 
     if (editing) {
       updateSurvey(editing.id, payload);
+      await updatePhotosWithSurveyId(editing.id);
     } else {
+      const beforeIds = new Set(useSurveyStore.getState().surveys.map((s) => s.id));
       addSurvey(payload);
+
+      const store = useSurveyStore.getState();
+      const newSurvey = store.surveys.find((s) => !beforeIds.has(s.id));
+
+      if (newSurvey) {
+        await updatePhotosWithSurveyId(newSurvey.id);
+        updateSurvey(newSurvey.id, {
+          photoIds: surveyPhotos.map((p) => p.id),
+          species: finalSpecies,
+        });
+      }
     }
     onClose();
   };
 
   const existingSpeciesIds = species.map((s) => s.speciesId);
+
+  const currentSurveyId = editing?.id || tempSurveyId;
 
   return (
     <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center overflow-y-auto">
@@ -261,6 +402,25 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
           </div>
 
           <div>
+            <label className="label-text flex items-center gap-1">
+              <CameraIcon className="w-4 h-4" /> 站位照片 (
+              {surveyPhotos.length})
+            </label>
+            {surveyPhotos.length > 0 && (
+              <PhotoGrid
+                photos={surveyPhotos}
+                onDelete={handleDeleteSurveyPhoto}
+                className="mb-3"
+                size="sm"
+              />
+            )}
+            <PhotoCapture
+              surveyId={currentSurveyId}
+              onPhotoAdded={handleSurveyPhotoAdded}
+            />
+          </div>
+
+          <div>
             <div className="flex items-center justify-between mb-2">
               <label className="label-text mb-0 flex items-center gap-1">
                 <PlusCircle className="w-4 h-4" /> 物种记录 ({species.length})
@@ -280,80 +440,112 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
               </div>
             ) : (
               <div className="space-y-2">
-                {species.map((sp, i) => (
-                  <div
-                    key={sp.speciesId + i}
-                    className="card-glass p-3 space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium text-reef-300 truncate">
-                          {sp.commonName}
+                {species.map((sp, i) => {
+                  const spPhotos = speciesPhotos.get(sp.speciesId) || [];
+                  return (
+                    <div
+                      key={sp.speciesId + i}
+                      className="card-glass p-3 space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-reef-300 truncate">
+                            {sp.commonName}
+                          </div>
+                          <div className="text-xs text-ocean-400 italic truncate">
+                            {sp.scientificName}
+                          </div>
                         </div>
-                        <div className="text-xs text-ocean-400 italic truncate">
-                          {sp.scientificName}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeSpecies(i)}
-                        className="p-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors flex-shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-ocean-300 mb-1 block">
-                          个体数
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateSpeciesCount(i, -1)}
-                            className="w-10 h-10 rounded-xl bg-ocean-800/50 flex items-center justify-center text-ocean-200 hover:bg-ocean-700/50 transition-colors flex-shrink-0"
-                          >
-                            <Minus className="w-4 h-4" />
-                          </button>
-                          <input
-                            type="number"
-                            value={sp.count}
-                            onChange={(e) =>
-                              setSpecies((prev) =>
-                                prev.map((s, idx) =>
-                                  idx === i
-                                    ? { ...s, count: Math.max(0, parseInt(e.target.value) || 0) }
-                                    : s
-                                )
-                              )
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <PhotoCapture
+                            surveyId={currentSurveyId}
+                            speciesId={sp.speciesId}
+                            onPhotoAdded={(photo) =>
+                              handleSpeciesPhotoAdded(sp.speciesId, photo)
                             }
-                            className="input-field py-2 h-10 text-center"
+                            compact
                           />
                           <button
-                            onClick={() => updateSpeciesCount(i, 1)}
-                            className="w-10 h-10 rounded-xl bg-ocean-800/50 flex items-center justify-center text-ocean-200 hover:bg-ocean-700/50 transition-colors flex-shrink-0"
+                            onClick={() => removeSpecies(i)}
+                            className="p-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
-                      <div>
-                        <label className="text-xs text-ocean-300 mb-1 block">
-                          盖度 %
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={sp.coverage}
-                          onChange={(e) =>
-                            updateSpeciesCoverage(i, parseFloat(e.target.value) || 0)
+
+                      {spPhotos.length > 0 && (
+                        <PhotoGrid
+                          photos={spPhotos}
+                          onDelete={(pid) =>
+                            handleDeleteSpeciesPhoto(sp.speciesId, pid)
                           }
-                          className="input-field py-2 h-10"
+                          size="sm"
                         />
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-ocean-300 mb-1 block">
+                            个体数
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateSpeciesCount(i, -1)}
+                              className="w-10 h-10 rounded-xl bg-ocean-800/50 flex items-center justify-center text-ocean-200 hover:bg-ocean-700/50 transition-colors flex-shrink-0"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <input
+                              type="number"
+                              value={sp.count}
+                              onChange={(e) =>
+                                setSpecies((prev) =>
+                                  prev.map((s, idx) =>
+                                    idx === i
+                                      ? {
+                                          ...s,
+                                          count: Math.max(
+                                            0,
+                                            parseInt(e.target.value) || 0
+                                          ),
+                                        }
+                                      : s
+                                  )
+                                )
+                              }
+                              className="input-field py-2 h-10 text-center"
+                            />
+                            <button
+                              onClick={() => updateSpeciesCount(i, 1)}
+                              className="w-10 h-10 rounded-xl bg-ocean-800/50 flex items-center justify-center text-ocean-200 hover:bg-ocean-700/50 transition-colors flex-shrink-0"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-ocean-300 mb-1 block">
+                            盖度 %
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={sp.coverage}
+                            onChange={(e) =>
+                              updateSpeciesCoverage(
+                                i,
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="input-field py-2 h-10"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
