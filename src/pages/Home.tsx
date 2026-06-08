@@ -8,6 +8,7 @@ import {
   Menu,
   X,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import SurveyForm from "@/components/SurveyForm";
@@ -19,10 +20,11 @@ import ExportPanel from "@/components/ExportPanel";
 import SyncPanel from "@/components/SyncPanel";
 import SyncStatus from "@/components/SyncStatus";
 import CustomizableDashboard from "@/components/CustomizableDashboard";
+import SpeciesAtlas from "@/components/SpeciesAtlas";
 import type { SurveyRecord } from "@/types";
 import { cn } from "@/lib/utils";
 
-type TabKey = "overview" | "surveys" | "analysis" | "map" | "export" | "sync";
+type TabKey = "overview" | "surveys" | "analysis" | "map" | "export" | "sync" | "atlas";
 
 export default function Home() {
   const surveys = useSurveyStore((s) => s.surveys);
@@ -31,6 +33,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSync, setShowSync] = useState(false);
+  const [showAtlas, setShowAtlas] = useState(false);
 
   const handleEdit = (s: SurveyRecord) => {
     setEditing(s);
@@ -83,6 +86,7 @@ export default function Home() {
     { key: "surveys", label: "记录", icon: <Fish className="w-4 h-4" /> },
     { key: "map", label: "地图", icon: <Waves className="w-4 h-4" /> },
     { key: "analysis", label: "分析", icon: <Shell className="w-4 h-4" /> },
+    { key: "atlas", label: "图鉴", icon: <BookOpen className="w-4 h-4" /> },
     { key: "export", label: "导出", icon: <Menu className="w-4 h-4" /> },
     { key: "sync", label: "同步", icon: <RefreshCw className="w-4 h-4" /> },
   ];
@@ -237,6 +241,25 @@ export default function Home() {
 
         {activeTab === "export" && <ExportPanel surveys={surveys} />}
 
+        {activeTab === "atlas" && (
+          <div className="card-glass p-5">
+            <h3 className="section-title">
+              <BookOpen className="w-6 h-6 text-reef-400" />
+              物种图鉴
+            </h3>
+            <p className="text-sm text-ocean-300 mb-4">
+              浏览潮间带生物图鉴，查看详细描述、栖息环境、鉴别特征。支持选择两个物种进行形态对比，高亮差异项。可通过导入 JSON 补丁包更新图鉴数据。
+            </p>
+            <button
+              onClick={() => setShowAtlas(true)}
+              className="btn-primary w-full py-4 text-base"
+            >
+              <BookOpen className="w-5 h-5" />
+              打开物种图鉴
+            </button>
+          </div>
+        )}
+
         {activeTab === "sync" && (
           <div className="card-glass p-5">
             <h3 className="section-title">
@@ -272,6 +295,7 @@ export default function Home() {
 
       {showForm && <SurveyForm onClose={handleCloseForm} editing={editing} />}
       {showSync && <SyncPanel onClose={() => setShowSync(false)} />}
+      {showAtlas && <SpeciesAtlas onClose={() => setShowAtlas(false)} />}
     </div>
   );
 }

@@ -178,3 +178,41 @@ export interface SurveyTemplate {
   createdAt: number;
   updatedAt: number;
 }
+
+export interface MorphologyTrait {
+  label: string;
+  value: string;
+  unit?: string;
+}
+
+export interface SpeciesAtlasItem {
+  id: string;
+  scientificName: string;
+  commonName: string;
+  kingdom: string;
+  phylum: string;
+  className: string;
+  order: string;
+  family: string;
+  genus: string;
+  thumbnailUrl?: string;
+  images?: string[];
+  description: string;
+  habitat: string;
+  identificationKeys: string[];
+  morphology: MorphologyTrait[];
+  conservationStatus?: string;
+  edibility?: string;
+  distribution?: string;
+  seasonality?: string;
+}
+
+export interface AtlasPatchPackage {
+  version: number;
+  exportedAt: number;
+  description?: string;
+  added?: SpeciesAtlasItem[];
+  updated?: SpeciesAtlasItem[];
+  removed?: string[];
+  checksum?: string;
+}
