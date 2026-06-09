@@ -76,17 +76,49 @@ export const useSpecimenStore = create<SpecimenState>()(
           const current = state.specimens.find((s) => s.id === id);
           if (!current) return state;
 
-          const stationAbbr = data.stationAbbr ?? current.stationAbbr;
-          const date = data.date ?? current.date;
-          const sequenceNo = data.sequenceNo ?? current.sequenceNo;
+          const newStationAbbr = data.stationAbbr ?? current.stationAbbr;
+          const newDate = data.date ?? current.date;
+          const stationOrDateChanged =
+            newStationAbbr !== current.stationAbbr || newDate !== current.date;
 
-          let specimenNo = current.specimenNo;
-          if (
-            stationAbbr !== current.stationAbbr ||
-            date !== current.date ||
-            (data.sequenceNo !== undefined && data.sequenceNo !== current.sequenceNo)
-          ) {
-            specimenNo = buildSpecimenNo(stationAbbr, date, sequenceNo);
+          let sequenceNo: number;
+          if (data.sequenceNo !== undefined) {
+            sequenceNo = data.sequenceNo;
+          } else if (stationOrDateChanged) {
+            const otherSpecimens = state.specimens.filter((s) => s.id !== id);
+            const key = `${newStationAbbr.toUpperCase()}-${formatDate(newDate)}`;
+            const existingInNewGroup = otherSpecimens.filter((s) =>
+              s.specimenNo.startsWith(key + "-")
+            );
+            sequenceNo =
+              existingInNewGroup.length === 0
+                ? 1
+                : Math.max(...existingInNewGroup.map((s) => s.sequenceNo)) + 1;
+          } else {
+            sequenceNo = current.sequenceNo;
+          }
+
+          const candidateNo = buildSpecimenNo(newStationAbbr, newDate, sequenceNo);
+          const conflict = state.specimens.find(
+            (s) => s.id !== id && s.specimenNo === candidateNo
+          );
+          let finalSequenceNo = sequenceNo;
+          let finalSpecimenNo = candidateNo;
+          if (conflict) {
+            const otherSpecimens = state.specimens.filter((s) => s.id !== id);
+            const key = `${newStationAbbr.toUpperCase()}-${formatDate(newDate)}`;
+            const existingInGroup = otherSpecimens.filter((s) =>
+              s.specimenNo.startsWith(key + "-")
+            );
+            finalSequenceNo =
+              existingInGroup.length === 0
+                ? 1
+                : Math.max(...existingInGroup.map((s) => s.sequenceNo)) + 1;
+            finalSpecimenNo = buildSpecimenNo(
+              newStationAbbr,
+              newDate,
+              finalSequenceNo
+            );
           }
 
           return {
@@ -95,10 +127,10 @@ export const useSpecimenStore = create<SpecimenState>()(
                 ? {
                     ...s,
                     ...data,
-                    stationAbbr,
-                    date,
-                    sequenceNo,
-                    specimenNo,
+                    stationAbbr: newStationAbbr,
+                    date: newDate,
+                    sequenceNo: finalSequenceNo,
+                    specimenNo: finalSpecimenNo,
                     updatedAt: Date.now(),
                   }
                 : s

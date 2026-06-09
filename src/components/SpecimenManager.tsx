@@ -14,6 +14,8 @@ import {
   FileSpreadsheet,
   Printer,
   Download,
+  Wine,
+  FlaskConical,
 } from "lucide-react";
 import {
   useSpecimenStore,
@@ -31,8 +33,8 @@ const PRESERVATION_OPTIONS: PreservationMethod[] = [
 ];
 
 const PRESERVATION_ICONS: Record<PreservationMethod, React.ReactNode> = {
-  alcohol: <Droplets className="w-4 h-4" />,
-  formalin: <Droplets className="w-4 h-4" />,
+  alcohol: <Wine className="w-4 h-4" />,
+  formalin: <FlaskConical className="w-4 h-4" />,
   frozen: <Snowflake className="w-4 h-4" />,
   dried: <Leaf className="w-4 h-4" />,
 };
@@ -84,21 +86,37 @@ function SpecimenForm({ specimen, onClose }: SpecimenFormProps) {
   const [sequenceNo, setSequenceNo] = useState<number | "">(
     specimen?.sequenceNo ?? ""
   );
+  const [sequenceNoTouched, setSequenceNoTouched] = useState(false);
 
   const previewNo = useMemo(() => {
     if (!stationAbbr || !date) return "";
-    const seq =
-      typeof sequenceNo === "number"
-        ? sequenceNo
-        : getNextSequenceNo(stationAbbr, date);
+    let seq: number;
+    if (typeof sequenceNo === "number") {
+      seq = sequenceNo;
+    } else if (specimen && !sequenceNoTouched &&
+               stationAbbr === specimen.stationAbbr &&
+               date === specimen.date) {
+      seq = specimen.sequenceNo;
+    } else {
+      seq = getNextSequenceNo(stationAbbr, date);
+    }
     return buildSpecimenNo(stationAbbr, date, seq);
-  }, [stationAbbr, date, sequenceNo, getNextSequenceNo]);
+  }, [stationAbbr, date, sequenceNo, sequenceNoTouched, getNextSequenceNo, specimen]);
 
   const isValid = stationAbbr.trim().length > 0 && location.trim().length > 0;
 
   const handleSubmit = () => {
     if (!isValid) return;
     if (specimen) {
+      const stationOrDateChanged =
+        stationAbbr.trim().toUpperCase() !== specimen.stationAbbr ||
+        date !== specimen.date;
+      let finalSequenceNo: number | undefined;
+      if (typeof sequenceNo === "number" && sequenceNoTouched) {
+        finalSequenceNo = sequenceNo;
+      } else if (!stationOrDateChanged) {
+        finalSequenceNo = specimen.sequenceNo;
+      }
       updateSpecimen(specimen.id, {
         stationAbbr: stationAbbr.trim().toUpperCase(),
         date,
@@ -106,7 +124,7 @@ function SpecimenForm({ specimen, onClose }: SpecimenFormProps) {
         location: location.trim(),
         speciesName: speciesName.trim() || undefined,
         notes: notes.trim() || undefined,
-        sequenceNo: typeof sequenceNo === "number" ? sequenceNo : undefined,
+        sequenceNo: finalSequenceNo,
       });
     } else {
       addSpecimen({
@@ -182,11 +200,12 @@ function SpecimenForm({ specimen, onClose }: SpecimenFormProps) {
               <input
                 type="number"
                 value={sequenceNo}
-                onChange={(e) =>
+                onChange={(e) => {
+                  setSequenceNoTouched(true);
                   setSequenceNo(
                     e.target.value === "" ? "" : parseInt(e.target.value, 10)
-                  )
-                }
+                  );
+                }}
                 placeholder="自动"
                 min={1}
                 className="input-field"
