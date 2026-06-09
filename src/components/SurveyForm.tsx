@@ -173,6 +173,14 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
 
+  const [surveyPhotos, setSurveyPhotos] = useState<PhotoRecord[]>([]);
+  const [speciesPhotos, setSpeciesPhotos] = useState<Map<string, PhotoRecord[]>>(
+    new Map()
+  );
+  const [tempSurveyId] = useState(
+    () => `temp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+  );
+
   const [trackMode, setTrackMode] = useState(false);
   const [trackSessionId, setTrackSessionId] = useState<string | null>(null);
   const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([]);
@@ -267,14 +275,6 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       alert(geolocation.error + "，请手动输入");
     }
   }, [geolocation]);
-
-  const [surveyPhotos, setSurveyPhotos] = useState<PhotoRecord[]>([]);
-  const [speciesPhotos, setSpeciesPhotos] = useState<Map<string, PhotoRecord[]>>(
-    new Map()
-  );
-  const [tempSurveyId] = useState(
-    () => `temp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-  );
 
   useEffect(() => {
     if (editing) {
@@ -493,8 +493,8 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
     };
 
     if (editing) {
-      updateSurvey(editing.id, payload);
       await updatePhotosWithSurveyId(editing.id);
+      updateSurvey(editing.id, payload);
     } else {
       const beforeIds = new Set(useSurveyStore.getState().surveys.map((s) => s.id));
       addSurvey(payload);
@@ -504,12 +504,6 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
 
       if (newSurvey) {
         await updatePhotosWithSurveyId(newSurvey.id);
-        updateSurvey(newSurvey.id, {
-          photoIds: surveyPhotos.map((p) => p.id),
-          species: finalSpecies,
-          trackPoints: hasTrackData ? trackPoints : undefined,
-          quadratMarkers: hasQuadratData ? quadratMarkers : undefined,
-        });
       }
     }
     onClose();
