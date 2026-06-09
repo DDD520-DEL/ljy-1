@@ -12,25 +12,21 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  TIMER_PRESETS,
+  formatTime,
+  calculateProgress,
+  calculateStrokeDashoffset,
+  calculateElapsed,
+  shouldTriggerFinish,
+  isOvertime,
+  isWarning,
+} from "@/lib/timer";
 
 interface TimeMarker {
   id: number;
   elapsed: number;
   label: string;
-}
-
-const PRESETS = [
-  { label: "10 分钟", seconds: 10 * 60 },
-  { label: "15 分钟", seconds: 15 * 60 },
-  { label: "30 分钟", seconds: 30 * 60 },
-];
-
-function formatTime(totalSeconds: number): string {
-  const abs = Math.abs(totalSeconds);
-  const m = Math.floor(abs / 60);
-  const s = abs % 60;
-  const sign = totalSeconds < 0 ? "-" : "";
-  return `${sign}${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
 function playBeep() {
@@ -76,7 +72,7 @@ export default function QuadratTimer() {
   const intervalRef = useRef<number | null>(null);
   const markerCounter = useRef(0);
 
-  const elapsed = duration - remaining;
+  const elapsed = calculateElapsed(duration, remaining);
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -86,13 +82,11 @@ export default function QuadratTimer() {
   }, []);
 
   useEffect(() => {
-    if (running && remaining > 0) {
+    if (running) {
       intervalRef.current = window.setInterval(() => {
         setRemaining((prev) => {
           const next = prev - 1;
-          if (next <= 0) {
-            clearTimer();
-            setRunning(false);
+          if (shouldTriggerFinish(prev, next)) {
             setFinished(true);
             playBeep();
             return 0;
@@ -114,7 +108,6 @@ export default function QuadratTimer() {
   };
 
   const handleToggle = () => {
-    if (remaining <= 0 && !running) return;
     setRunning((r) => !r);
     setFinished(false);
   };
@@ -143,9 +136,11 @@ export default function QuadratTimer() {
     setMarkers((prev) => prev.filter((m) => m.id !== id));
   };
 
-  const progress = duration > 0 ? Math.max(0, Math.min(1, remaining / duration)) : 0;
-  const circumference = 2 * Math.PI * 28;
-  const strokeDashoffset = circumference * (1 - progress);
+  const progress = calculateProgress(remaining, duration);
+  const strokeDashoffset = calculateStrokeDashoffset(progress, 28);
+
+  const overtime = isOvertime(remaining);
+  const warning = isWarning(remaining);
 
   return (
     <div className="fixed right-4 bottom-4 z-50 print:hidden">
@@ -197,7 +192,7 @@ export default function QuadratTimer() {
 
           <div className="p-4 space-y-4">
             <div className="grid grid-cols-3 gap-1.5">
-              {PRESETS.map((p) => (
+              {TIMER_PRESETS.map((p) => (
                 <button
                   key={p.seconds}
                   onClick={() => handlePreset(p.seconds)}
@@ -241,9 +236,11 @@ export default function QuadratTimer() {
                   <span
                     className={cn(
                       "text-2xl font-bold tabular-nums",
-                      finished
+                      overtime
+                        ? "text-red-400"
+                        : finished
                         ? "text-reef-400"
-                        : remaining < 60
+                        : warning
                         ? "text-amber-300"
                         : "text-ocean-100"
                     )}
@@ -252,7 +249,7 @@ export default function QuadratTimer() {
                   </span>
                   <span className="text-[10px] text-ocean-400 mt-0.5 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    已用 {formatTime(elapsed)}
+                    {overtime ? "加班" : "已用"} {formatTime(elapsed)}
                   </span>
                 </div>
               </div>
@@ -268,12 +265,9 @@ export default function QuadratTimer() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleToggle}
-                disabled={remaining <= 0 && !running && !finished}
                 className={cn(
                   "flex-1 py-2.5 rounded-xl font-medium text-sm transition-all min-h-[40px] flex items-center justify-center gap-1.5",
-                  remaining <= 0 && !running
-                    ? "bg-ocean-800/40 text-ocean-500 cursor-not-allowed"
-                    : running
+                  running
                     ? "bg-amber-500/20 text-amber-200 border border-amber-500/40 hover:bg-amber-500/30"
                     : "bg-reef-500 hover:bg-reef-600 text-white"
                 )}
@@ -294,7 +288,7 @@ export default function QuadratTimer() {
               </button>
               <button
                 onClick={handleMark}
-                disabled={!running && elapsed === 0}
+                disabled={!running}
                 className={cn(
                   "py-2.5 px-3 rounded-xl font-medium text-sm transition-all min-h-[40px] flex items-center justify-center gap-1.5 border",
                   running
