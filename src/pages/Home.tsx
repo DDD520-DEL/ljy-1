@@ -9,10 +9,13 @@ import {
   X,
   RefreshCw,
   BookOpen,
+  Filter,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
+import { useFilterStore } from "@/store/filterStore";
 import SurveyForm from "@/components/SurveyForm";
 import SurveyList from "@/components/SurveyList";
+import SurveyFilter from "@/components/SurveyFilter";
 import DiversityIndices from "@/components/DiversityIndices";
 import StationMap from "@/components/StationMap";
 import CommunityCharts from "@/components/CommunityCharts";
@@ -27,7 +30,16 @@ import { cn } from "@/lib/utils";
 type TabKey = "overview" | "surveys" | "analysis" | "map" | "export" | "sync" | "atlas";
 
 export default function Home() {
-  const surveys = useSurveyStore((s) => s.getActiveSurveys());
+  const allSurveys = useSurveyStore((s) => s.getActiveSurveys());
+  const filterSurveys = useFilterStore((s) => s.filterSurveys);
+  const hasActiveFilters = useFilterStore((s) => s.hasActiveFilters);
+  const resetCriteria = useFilterStore((s) => s.resetCriteria);
+
+  const filteredSurveys = useMemo(
+    () => filterSurveys(allSurveys),
+    [allSurveys, filterSurveys]
+  );
+
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<SurveyRecord | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
@@ -47,7 +59,7 @@ export default function Home() {
 
   const allSpecies = useMemo(() => {
     const merged = new Map<string, { count: number; coverage: number; name: string; sci: string }>();
-    for (const s of surveys) {
+    for (const s of filteredSurveys) {
       for (const sp of s.species) {
         const existing = merged.get(sp.speciesId);
         if (existing) {
@@ -64,22 +76,34 @@ export default function Home() {
       }
     }
     return Array.from(merged.values()).filter((v) => v.count > 0);
-  }, [surveys]);
+  }, [filteredSurveys]);
 
   const stats = useMemo(() => {
     const stations = new Set(
-      surveys.map(
+      filteredSurveys.map(
         (s) => `${s.location.lat.toFixed(4)},${s.location.lng.toFixed(4)}`
       )
     ).size;
     const totalIndividuals = allSpecies.reduce((sum, v) => sum + v.count, 0);
     return {
-      surveyCount: surveys.length,
+      surveyCount: filteredSurveys.length,
       stations,
       speciesCount: allSpecies.length,
       totalIndividuals,
     };
-  }, [surveys, allSpecies]);
+  }, [filteredSurveys, allSpecies]);
+
+  const totalStats = useMemo(() => {
+    const totalStations = new Set(
+      allSurveys.map(
+        (s) => `${s.location.lat.toFixed(4)},${s.location.lng.toFixed(4)}`
+      )
+    ).size;
+    return {
+      surveyCount: allSurveys.length,
+      stations: totalStations,
+    };
+  }, [allSurveys]);
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: "总览", icon: <Activity className="w-4 h-4" /> },
@@ -90,6 +114,28 @@ export default function Home() {
     { key: "export", label: "导出", icon: <Menu className="w-4 h-4" /> },
     { key: "sync", label: "同步", icon: <RefreshCw className="w-4 h-4" /> },
   ];
+
+  const FilterNotice = () => {
+    if (!hasActiveFilters()) return null;
+    return (
+      <div className="card-glass px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2 text-sm">
+          <Filter className="w-4 h-4 text-reef-400" />
+          <span className="text-ocean-300">
+            当前筛选范围：
+            <span className="text-reef-300 font-semibold">{filteredSurveys.length}</span>
+            <span className="text-ocean-400"> / {totalStats.surveyCount} 条记录</span>
+          </span>
+        </div>
+        <button
+          onClick={resetCriteria}
+          className="text-xs text-ocean-300 hover:text-white underline"
+        >
+          清除筛选
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen pb-24 md:pb-8">
@@ -107,6 +153,11 @@ export default function Home() {
                 多样性分析系统
               </p>
             </div>
+            {hasActiveFilters() && (
+              <span className="ml-2 text-xs bg-reef-500/20 text-reef-300 px-2 py-0.5 rounded-full border border-reef-500/30">
+                已筛选
+              </span>
+            )}
           </div>
 
           <div className="hidden md:flex items-center gap-1">
@@ -179,10 +230,16 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-4 py-5 space-y-5">
         {activeTab === "overview" && (
           <>
+            <FilterNotice />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="stat-card">
                 <div className="text-3xl font-bold text-ocean-300">
                   {stats.surveyCount}
+                  {hasActiveFilters() && totalStats.surveyCount !== stats.surveyCount && (
+                    <span className="text-sm font-normal text-ocean-500 ml-1">
+                      / {totalStats.surveyCount}
+                    </span>
+                  )}
                 </div>
                 <div className="stat-label">调查记录</div>
               </div>
@@ -206,24 +263,30 @@ export default function Home() {
               </div>
             </div>
 
-            <CustomizableDashboard surveys={surveys} />
+            <CustomizableDashboard surveys={filteredSurveys} />
 
-            <StationMap surveys={surveys} />
+            <StationMap surveys={filteredSurveys} />
           </>
         )}
 
         {activeTab === "surveys" && (
-          <SurveyList surveys={surveys} onEdit={handleEdit} />
+          <SurveyList surveys={filteredSurveys} onEdit={handleEdit} />
         )}
 
-        {activeTab === "map" && <StationMap surveys={surveys} />}
+        {activeTab === "map" && (
+          <>
+            <FilterNotice />
+            <StationMap surveys={filteredSurveys} />
+          </>
+        )}
 
         {activeTab === "analysis" && (
           <div className="space-y-5">
-            <CommunityCharts surveys={surveys} />
-            {surveys.length > 0 && (
+            <FilterNotice />
+            <CommunityCharts surveys={filteredSurveys} />
+            {filteredSurveys.length > 0 && (
               <div className="grid md:grid-cols-2 gap-5">
-                {surveys.slice(0, 6).map((s) => (
+                {filteredSurveys.slice(0, 6).map((s) => (
                   <div key={s.id} className="card-glass p-4">
                     <div className="flex justify-between items-center mb-2">
                       <h4 className="font-semibold text-ocean-100">
@@ -239,7 +302,12 @@ export default function Home() {
           </div>
         )}
 
-        {activeTab === "export" && <ExportPanel surveys={surveys} />}
+        {activeTab === "export" && (
+          <>
+            <FilterNotice />
+            <ExportPanel surveys={filteredSurveys} />
+          </>
+        )}
 
         {activeTab === "atlas" && (
           <div className="card-glass p-5">

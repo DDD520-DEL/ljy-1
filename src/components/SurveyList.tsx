@@ -12,6 +12,9 @@ import {
   Image as ImageIcon,
   History,
   Trash as TrashIcon,
+  CheckSquare,
+  Square,
+  MoreHorizontal,
 } from "lucide-react";
 import type { SurveyRecord, PhotoRecord, SpeciesRecord } from "@/types";
 import {
@@ -22,12 +25,15 @@ import {
   calcDiversityIndices,
 } from "@/lib/diversity";
 import { useSurveyStore } from "@/store/surveyStore";
+import { useFilterStore } from "@/store/filterStore";
 import { deletePhotosBySurvey } from "@/lib/photoStore";
 import { useSurveyPhotos, useSpeciesPhotos } from "@/hooks/usePhotos";
 import PhotoGrid from "./PhotoGrid";
 import { cn } from "@/lib/utils";
 import SurveyHistory from "./SurveyHistory";
 import RecycleBin from "./RecycleBin";
+import BatchOperations from "./BatchOperations";
+import SurveyFilter from "./SurveyFilter";
 
 interface SurveyListProps {
   surveys: SurveyRecord[];
@@ -45,11 +51,15 @@ function SurveyCard({
   onEdit,
   onDelete,
   onViewHistory,
+  isSelected,
+  onToggleSelect,
 }: {
   survey: SurveyRecord;
   onEdit: (survey: SurveyRecord) => void;
   onDelete: (id: string) => void;
   onViewHistory: (survey: SurveyRecord) => void;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { photos: surveyPhotos, removePhoto: removeSurveyPhoto } = useSurveyPhotos(
@@ -72,51 +82,73 @@ function SurveyCard({
   };
 
   return (
-    <div className="card-glass border border-ocean-700/40 overflow-hidden">
+    <div
+      className={cn(
+        "card-glass border overflow-hidden transition-all",
+        isSelected
+          ? "border-reef-500/60 ring-1 ring-reef-500/30"
+          : "border-ocean-700/40"
+      )}
+    >
       <div
         className="p-4 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <span className="font-bold text-ocean-100 text-base">
-                {survey.stationName}
-              </span>
-              <span
-                className={cn(
-                  "text-xs px-2 py-0.5 rounded-full border font-medium",
-                  tideBadgeColor(survey.tideZone)
-                )}
-              >
-                {TIDE_LABEL[survey.tideZone]}
-              </span>
-              <span className="chip text-xs">
-                {SEASON_LABEL[getSeason(survey.date)]}
-              </span>
-              {(survey.photoIds?.length || 0) > 0 && (
-                <span className="chip text-xs flex items-center gap-1">
-                  <ImageIcon className="w-3 h-3" />
-                  {survey.photoIds?.length || 0}
-                </span>
+          <div
+            className="flex items-start gap-3 flex-1 min-w-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={onToggleSelect}
+              className="mt-0.5 p-0.5 rounded hover:bg-ocean-700/40 text-ocean-300 hover:text-white transition-colors"
+            >
+              {isSelected ? (
+                <CheckSquare className="w-5 h-5 text-reef-400" />
+              ) : (
+                <Square className="w-5 h-5" />
               )}
-            </div>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-ocean-300">
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" /> {survey.date}
-              </span>
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" />
-                {survey.location.lat.toFixed(3)}, {survey.location.lng.toFixed(3)}
-              </span>
-              <span className="flex items-center gap-1">
-                <Waves className="w-3.5 h-3.5" />
-                {SUBSTRATE_LABEL[survey.substrateType]}
-              </span>
-              <span className="flex items-center gap-1">
-                <Fish className="w-3.5 h-3.5" />
-                {indices.speciesCount} 种 / H'={indices.shannonWiener}
-              </span>
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <span className="font-bold text-ocean-100 text-base">
+                  {survey.stationName}
+                </span>
+                <span
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded-full border font-medium",
+                    tideBadgeColor(survey.tideZone)
+                  )}
+                >
+                  {TIDE_LABEL[survey.tideZone]}
+                </span>
+                <span className="chip text-xs">
+                  {SEASON_LABEL[getSeason(survey.date)]}
+                </span>
+                {(survey.photoIds?.length || 0) > 0 && (
+                  <span className="chip text-xs flex items-center gap-1">
+                    <ImageIcon className="w-3 h-3" />
+                    {survey.photoIds?.length || 0}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-ocean-300">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" /> {survey.date}
+                </span>
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {survey.location.lat.toFixed(3)}, {survey.location.lng.toFixed(3)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Waves className="w-3.5 h-3.5" />
+                  {SUBSTRATE_LABEL[survey.substrateType]}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Fish className="w-3.5 h-3.5" />
+                  {indices.speciesCount} 种 / H'={indices.shannonWiener}
+                </span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -279,8 +311,16 @@ function SpeciesCard({
 
 export default function SurveyList({ surveys, onEdit }: SurveyListProps) {
   const deleteSurvey = useSurveyStore((s) => s.deleteSurvey);
+  const {
+    toggleSelected,
+    selectAll,
+    deselectAll,
+    isSelected,
+    getSelectedIds,
+  } = useFilterStore();
   const [historySurvey, setHistorySurvey] = useState<SurveyRecord | null>(null);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [showBatchOps, setShowBatchOps] = useState(false);
   const deletedCount = useSurveyStore((s) => s.getDeletedSurveys()).length;
 
   const sorted = useMemo(
@@ -288,24 +328,46 @@ export default function SurveyList({ surveys, onEdit }: SurveyListProps) {
     [surveys]
   );
 
+  const allIds = useMemo(() => sorted.map((s) => s.id), [sorted]);
+  const selectedIds = getSelectedIds();
+  const allSelected = allIds.length > 0 && selectedIds.length === allIds.length;
+  const someSelected = selectedIds.length > 0;
+
+  useEffect(() => {
+    return () => {
+      deselectAll();
+    };
+  }, []);
+
+  const handleToggleAll = () => {
+    if (allSelected) {
+      deselectAll();
+    } else {
+      selectAll(allIds);
+    }
+  };
+
   if (surveys.length === 0) {
     return (
       <>
-        <div className="card-glass p-8 text-center">
-          <List className="w-12 h-12 mx-auto mb-3 text-ocean-500 opacity-40" />
-          <p className="text-ocean-300">暂无调查记录</p>
-          <p className="text-ocean-500 text-sm mt-1">
-            点击「新建调查」开始记录潮间带生物样方数据
-          </p>
-          {deletedCount > 0 && (
-            <button
-              onClick={() => setShowRecycleBin(true)}
-              className="mt-4 btn-ghost text-sm"
-            >
-              <TrashIcon className="w-4 h-4" />
-              查看回收站 ({deletedCount})
-            </button>
-          )}
+        <div className="space-y-4">
+          <SurveyFilter />
+          <div className="card-glass p-8 text-center">
+            <List className="w-12 h-12 mx-auto mb-3 text-ocean-500 opacity-40" />
+            <p className="text-ocean-300">暂无调查记录</p>
+            <p className="text-ocean-500 text-sm mt-1">
+              点击「新建调查」开始记录潮间带生物样方数据
+            </p>
+            {deletedCount > 0 && (
+              <button
+                onClick={() => setShowRecycleBin(true)}
+                className="mt-4 btn-ghost text-sm"
+              >
+                <TrashIcon className="w-4 h-4" />
+                查看回收站 ({deletedCount})
+              </button>
+            )}
+          </div>
         </div>
         {historySurvey && (
           <SurveyHistory
@@ -322,38 +384,71 @@ export default function SurveyList({ surveys, onEdit }: SurveyListProps) {
 
   return (
     <>
-      <div className="card-glass p-5">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h3 className="section-title mb-0">
-            <List className="w-6 h-6 text-reef-400" />
-            调查记录列表
-            <span className="ml-2 text-sm font-normal text-ocean-400">
-              ({surveys.length} 条)
-            </span>
-          </h3>
-          {deletedCount > 0 && (
-            <button
-              onClick={() => setShowRecycleBin(true)}
-              className="btn-ghost text-sm py-2 px-3 min-h-[40px]"
-            >
-              <TrashIcon className="w-4 h-4" />
-              回收站 ({deletedCount})
-            </button>
-          )}
-        </div>
+      <div className="space-y-4">
+        <SurveyFilter />
 
-        <div className="space-y-2">
-          {sorted.map((s) => (
-            <SurveyCard
-              key={s.id}
-              survey={s}
-              onEdit={onEdit}
-              onDelete={deleteSurvey}
-              onViewHistory={setHistorySurvey}
-            />
-          ))}
+        <div className="card-glass p-5">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className="section-title mb-0">
+                <List className="w-6 h-6 text-reef-400" />
+                调查记录列表
+                <span className="ml-2 text-sm font-normal text-ocean-400">
+                  ({surveys.length} 条
+                  {selectedIds.length > 0 && `, 已选 ${selectedIds.length}`}
+                  )
+                </span>
+              </h3>
+              <button
+                onClick={handleToggleAll}
+                className="flex items-center gap-1.5 text-sm text-ocean-300 hover:text-white transition-colors"
+              >
+                {allSelected ? (
+                  <CheckSquare className="w-4 h-4 text-reef-400" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {allSelected ? "取消全选" : "全选"}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              {someSelected && (
+                <button
+                  onClick={() => setShowBatchOps(true)}
+                  className="btn-primary text-sm py-2 px-3 min-h-[40px]"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                  批量操作 ({selectedIds.length})
+                </button>
+              )}
+              {deletedCount > 0 && (
+                <button
+                  onClick={() => setShowRecycleBin(true)}
+                  className="btn-ghost text-sm py-2 px-3 min-h-[40px]"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                  回收站 ({deletedCount})
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {sorted.map((s) => (
+              <SurveyCard
+                key={s.id}
+                survey={s}
+                onEdit={onEdit}
+                onDelete={deleteSurvey}
+                onViewHistory={setHistorySurvey}
+                isSelected={isSelected(s.id)}
+                onToggleSelect={() => toggleSelected(s.id)}
+              />
+            ))}
+          </div>
         </div>
       </div>
+
       {historySurvey && (
         <SurveyHistory
           survey={historySurvey}
@@ -363,6 +458,11 @@ export default function SurveyList({ surveys, onEdit }: SurveyListProps) {
       {showRecycleBin && (
         <RecycleBin onClose={() => setShowRecycleBin(false)} />
       )}
+      <BatchOperations
+        open={showBatchOps}
+        onClose={() => setShowBatchOps(false)}
+        surveys={surveys}
+      />
     </>
   );
 }
