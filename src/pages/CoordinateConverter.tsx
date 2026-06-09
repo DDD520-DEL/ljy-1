@@ -160,13 +160,6 @@ export default function CoordinateConverter() {
     };
   }, [dmsLatDeg, dmsLatMin, dmsLatSec, dmsLatDir, dmsLngDeg, dmsLngMin, dmsLngSec, dmsLngDir]);
 
-  // 保存转换到历史
-  useEffect(() => {
-    if (direction === "decimalToDms" && decimalToDmsResult) {
-      // debounce: 只有值有效且用户完成输入时才记录，我们通过按钮触发
-    }
-  }, [direction, decimalToDmsResult]);
-
   const handleSaveDecimalToDms = () => {
     if (!decimalToDmsResult) return;
     const record: ConversionRecord = {

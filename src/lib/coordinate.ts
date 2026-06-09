@@ -31,10 +31,19 @@ export interface ConversionRecord {
 
 export function decimalToDMS(decimal: number, isLat: boolean): DMS {
   const abs = Math.abs(decimal);
-  const degrees = Math.floor(abs);
+  let degrees = Math.floor(abs);
   const minutesFloat = (abs - degrees) * 60;
-  const minutes = Math.floor(minutesFloat);
-  const seconds = Math.round((minutesFloat - minutes) * 60 * 10000) / 10000;
+  let minutes = Math.floor(minutesFloat);
+  let seconds = Math.round((minutesFloat - minutes) * 60 * 10000) / 10000;
+
+  if (seconds >= 60) {
+    seconds -= 60;
+    minutes += 1;
+  }
+  if (minutes >= 60) {
+    minutes -= 60;
+    degrees += 1;
+  }
 
   let direction: DMS["direction"];
   if (isLat) {
