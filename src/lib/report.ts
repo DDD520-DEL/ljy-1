@@ -201,7 +201,7 @@ function computeDominantSpecies(surveys: SurveyRecord[]): DominantSpecies[] {
   }
 
   const result: DominantSpecies[] = [];
-  for (const [speciesId, data of speciesData) {
+  for (const [speciesId, data] of speciesData) {
     result.push({
       speciesId,
       scientificName: data.scientificName,
@@ -290,7 +290,7 @@ export function getTopSpeciesForStackedBar(
 ): {
   categories: string[];
   species: { speciesId: string; scientificName: string; commonName: string }[];
-  data: { category: string; [speciesId: string; count: number }[];
+  data: { category: string; [speciesId: string]: number }[];
 } {
   const allSpecies = new Map<
     string,

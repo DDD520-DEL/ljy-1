@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   Shell,
   Plus,
@@ -18,6 +19,7 @@ import {
   Package,
   Tag,
   Sparkles,
+  Compass,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import { useFilterStore } from "@/store/filterStore";
@@ -298,6 +300,13 @@ export default function Home() {
                 {t.label}
               </button>
             ))}
+            <Link
+              to="/tools/coordinate-converter"
+              className="px-4 py-2 rounded-xl font-medium transition-all min-h-[44px] flex items-center gap-2 text-ocean-300 hover:text-white hover:bg-reef-500/20 ml-2 border-l border-ocean-700/40 pl-3"
+            >
+              <Compass className="w-4 h-4" />
+              坐标转换
+            </Link>
           </div>
 
           <div className="flex items-center gap-2">
@@ -345,6 +354,14 @@ export default function Home() {
                 {t.label}
               </button>
             ))}
+            <Link
+              to="/tools/coordinate-converter"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full px-4 py-3 rounded-xl font-medium transition-all flex items-center gap-2 text-ocean-300 hover:bg-reef-500/20 border-t border-ocean-700/30 mt-2 pt-3"
+            >
+              <Compass className="w-4 h-4" />
+              坐标转换工具
+            </Link>
           </div>
         )}
       </header>

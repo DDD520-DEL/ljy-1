@@ -669,4 +669,4 @@ function buildAtlasItem(item: (typeof speciesCatalog)[number]): SpeciesAtlasItem
 
 export const speciesAtlas: SpeciesAtlasItem[] = speciesCatalog.map(buildAtlasItem);
 
-export { buildAtlasItem, buildMorphology, makePlaceholderSvg };
+export { buildAtlasItem, buildMorphology };
