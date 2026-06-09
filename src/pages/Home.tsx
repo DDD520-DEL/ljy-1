@@ -29,6 +29,7 @@ import DiversityIndices from "@/components/DiversityIndices";
 import StationMap from "@/components/StationMap";
 import CommunityCharts from "@/components/CommunityCharts";
 import ExportPanel from "@/components/ExportPanel";
+import ShareCard from "@/components/ShareCard";
 import SyncPanel from "@/components/SyncPanel";
 import SyncStatus from "@/components/SyncStatus";
 import CustomizableDashboard from "@/components/CustomizableDashboard";
@@ -439,6 +440,7 @@ export default function Home() {
         {activeTab === "export" && (
           <>
             <FilterNotice />
+            <ShareCard surveys={filteredSurveys} />
             <ExportPanel surveys={filteredSurveys} />
           </>
         )}
