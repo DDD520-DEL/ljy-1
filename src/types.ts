@@ -323,3 +323,24 @@ export interface Specimen {
   createdAt: number;
   updatedAt?: number;
 }
+
+export interface GuidebookSpeciesItem {
+  id: string;
+  catalogId: string;
+  scientificName: string;
+  commonName: string;
+  kingdom: string;
+  phylum: string;
+  phylumCn: string;
+  className: string;
+  classCn: string;
+  order: string;
+  family: string;
+  familyCn: string;
+  genus: string;
+  imagePrompt: string;
+  ecologicalHabit: string;
+  diet: string;
+  conservationStatus: string;
+  funFacts: string[];
+}

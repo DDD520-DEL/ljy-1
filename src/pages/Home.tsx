@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   Package,
   Tag,
+  Sparkles,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import { useFilterStore } from "@/store/filterStore";
@@ -32,6 +33,7 @@ import SyncPanel from "@/components/SyncPanel";
 import SyncStatus from "@/components/SyncStatus";
 import CustomizableDashboard from "@/components/CustomizableDashboard";
 import SpeciesAtlas from "@/components/SpeciesAtlas";
+import SpeciesGuidebook from "@/components/SpeciesGuidebook";
 import ReportPanel from "@/components/ReportPanel";
 import EquipmentChecklist from "@/components/EquipmentChecklist";
 import SpecimenManager from "@/components/SpecimenManager";
@@ -39,7 +41,7 @@ import { useSpecimenStore } from "@/store/specimenStore";
 import type { SurveyRecord } from "@/types";
 import { cn } from "@/lib/utils";
 
-type TabKey = "overview" | "surveys" | "specimens" | "analysis" | "map" | "report" | "export" | "sync" | "atlas" | "equipment";
+type TabKey = "overview" | "surveys" | "specimens" | "analysis" | "map" | "report" | "export" | "sync" | "atlas" | "equipment" | "guidebook";
 
 export default function Home() {
   const allSurveys = useSurveyStore((s) => s.getActiveSurveys());
@@ -59,6 +61,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSync, setShowSync] = useState(false);
   const [showAtlas, setShowAtlas] = useState(false);
+  const [showGuidebook, setShowGuidebook] = useState(false);
 
   const handleEdit = (s: SurveyRecord) => {
     setEditing(s);
@@ -126,6 +129,7 @@ export default function Home() {
     { key: "analysis", label: "分析", icon: <Shell className="w-4 h-4" /> },
     { key: "report", label: "报告", icon: <FileText className="w-4 h-4" /> },
     { key: "atlas", label: "图鉴", icon: <BookOpen className="w-4 h-4" /> },
+    { key: "guidebook", label: "科普", icon: <Sparkles className="w-4 h-4" /> },
     { key: "equipment", label: "装备", icon: <Backpack className="w-4 h-4" /> },
     { key: "export", label: "导出", icon: <Menu className="w-4 h-4" /> },
     { key: "sync", label: "同步", icon: <RefreshCw className="w-4 h-4" /> },
@@ -458,6 +462,25 @@ export default function Home() {
           </div>
         )}
 
+        {activeTab === "guidebook" && (
+          <div className="card-glass p-5">
+            <h3 className="section-title">
+              <Sparkles className="w-6 h-6 text-reef-400" />
+              潮间带生物科普图鉴
+            </h3>
+            <p className="text-sm text-ocean-300 mb-4">
+              从常见潮间带生物科普图鉴，精选常见物种，展示生态习性、食性、保护等级与趣味冷知识。支持卡片滑动浏览，每日随机推荐一个物种。
+            </p>
+            <button
+              onClick={() => setShowGuidebook(true)}
+              className="btn-secondary w-full py-4 text-base"
+            >
+              <Sparkles className="w-5 h-5" />
+              打开科普图鉴
+            </button>
+          </div>
+        )}
+
         {activeTab === "sync" && (
           <div className="card-glass p-5">
             <h3 className="section-title">
@@ -494,6 +517,7 @@ export default function Home() {
       {showForm && <SurveyForm onClose={handleCloseForm} editing={editing} />}
       {showSync && <SyncPanel onClose={() => setShowSync(false)} />}
       {showAtlas && <SpeciesAtlas onClose={() => setShowAtlas(false)} />}
+      {showGuidebook && <SpeciesGuidebook onClose={() => setShowGuidebook(false)} />}
     </div>
   );
 }
