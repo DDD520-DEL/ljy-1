@@ -11,9 +11,15 @@ import {
   BookOpen,
   Filter,
   FileText,
+  Backpack,
+  AlertTriangle,
+  ChevronRight,
+  ClipboardCheck,
+  Package,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import { useFilterStore } from "@/store/filterStore";
+import { useEquipmentStore } from "@/store/equipmentStore";
 import SurveyForm from "@/components/SurveyForm";
 import SurveyList from "@/components/SurveyList";
 import SurveyFilter from "@/components/SurveyFilter";
@@ -26,10 +32,11 @@ import SyncStatus from "@/components/SyncStatus";
 import CustomizableDashboard from "@/components/CustomizableDashboard";
 import SpeciesAtlas from "@/components/SpeciesAtlas";
 import ReportPanel from "@/components/ReportPanel";
+import EquipmentChecklist from "@/components/EquipmentChecklist";
 import type { SurveyRecord } from "@/types";
 import { cn } from "@/lib/utils";
 
-type TabKey = "overview" | "surveys" | "analysis" | "map" | "report" | "export" | "sync" | "atlas";
+type TabKey = "overview" | "surveys" | "analysis" | "map" | "report" | "export" | "sync" | "atlas" | "equipment";
 
 export default function Home() {
   const allSurveys = useSurveyStore((s) => s.getActiveSurveys());
@@ -114,6 +121,7 @@ export default function Home() {
     { key: "analysis", label: "分析", icon: <Shell className="w-4 h-4" /> },
     { key: "report", label: "报告", icon: <FileText className="w-4 h-4" /> },
     { key: "atlas", label: "图鉴", icon: <BookOpen className="w-4 h-4" /> },
+    { key: "equipment", label: "装备", icon: <Backpack className="w-4 h-4" /> },
     { key: "export", label: "导出", icon: <Menu className="w-4 h-4" /> },
     { key: "sync", label: "同步", icon: <RefreshCw className="w-4 h-4" /> },
   ];
@@ -137,6 +145,107 @@ export default function Home() {
           清除筛选
         </button>
       </div>
+    );
+  };
+
+  interface EquipmentReminderCardProps {
+    onJump: () => void;
+  }
+
+  const EquipmentReminderCard = ({ onJump }: EquipmentReminderCardProps) => {
+    const templates = useEquipmentStore((s) => s.templates);
+    const getIncompleteCount = useEquipmentStore((s) => s.getIncompleteCount);
+
+    const templateStats = useMemo(() => {
+      return templates
+        .map((t) => ({
+          ...t,
+          counts: getIncompleteCount(t.id),
+        }))
+        .filter((t) => t.counts.total > 0 && (t.counts.notPrepared > 0 || t.counts.notPacked > 0));
+    }, [templates, getIncompleteCount]);
+
+    const totalIncomplete = templateStats.reduce(
+      (sum, t) => sum + Math.max(t.counts.notPrepared, t.counts.notPacked),
+      0
+    );
+
+    if (templateStats.length === 0) return null;
+
+    return (
+      <button
+        onClick={onJump}
+        className={cn(
+          "w-full text-left card-glass p-4 transition-all hover:ring-2 hover:ring-reef-400/50 group",
+          totalIncomplete > 0 ? "bg-reef-500/5 border-reef-500/30" : ""
+        )}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div
+              className={cn(
+                "w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0",
+                totalIncomplete > 0
+                  ? "bg-gradient-to-br from-reef-500 to-red-500 animate-pulse"
+                  : "bg-gradient-to-br from-emerald-500 to-teal-500"
+              )}
+            >
+              {totalIncomplete > 0 ? (
+                <AlertTriangle className="w-6 h-6 text-white" />
+              ) : (
+                <Backpack className="w-6 h-6 text-white" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-ocean-100">
+                  {totalIncomplete > 0 ? "装备准备提醒" : "装备已就绪"}
+                </h3>
+                {totalIncomplete > 0 && (
+                  <span className="chip bg-reef-500/20 text-reef-300 border-reef-500/30 text-xs">
+                    {totalIncomplete} 项待处理
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-ocean-400 mt-0.5">
+                {totalIncomplete > 0
+                  ? "下次调查前请检查以下装备是否准备完成"
+                  : "所有模板的装备已全部准备就绪"}
+              </p>
+              {templateStats.length > 0 && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {templateStats.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-ocean-800/40 border border-ocean-700/30"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Backpack className="w-4 h-4 text-reef-400 flex-shrink-0" />
+                        <span className="text-sm text-ocean-200 truncate">{t.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {t.counts.notPrepared > 0 && (
+                          <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-reef-500/20 text-reef-300">
+                            <ClipboardCheck className="w-3 h-3" />
+                            {t.counts.notPrepared}
+                          </span>
+                        )}
+                        {t.counts.notPacked > 0 && (
+                          <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">
+                            <Package className="w-3 h-3" />
+                            {t.counts.notPacked}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-ocean-500 group-hover:text-reef-400 group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-1" />
+        </div>
+      </button>
     );
   };
 
@@ -266,11 +375,15 @@ export default function Home() {
               </div>
             </div>
 
+            <EquipmentReminderCard onJump={() => setActiveTab("equipment")} />
+
             <CustomizableDashboard surveys={filteredSurveys} />
 
             <StationMap surveys={filteredSurveys} />
           </>
         )}
+
+        {activeTab === "equipment" && <EquipmentChecklist />}
 
         {activeTab === "surveys" && (
           <SurveyList surveys={filteredSurveys} onEdit={handleEdit} />

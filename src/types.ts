@@ -262,3 +262,26 @@ export interface AtlasPatchPackage {
   removed?: string[];
   checksum?: string;
 }
+
+export interface EquipmentItem {
+  id: string;
+  name: string;
+  category?: string;
+  quantity?: number;
+  prepared: boolean;
+  packed: boolean;
+  notes?: string;
+}
+
+export interface EquipmentTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  items: EquipmentItem[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface EquipmentChecklistState {
+  activeTemplateId: string | null;
+}
