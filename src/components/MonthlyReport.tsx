@@ -101,23 +101,27 @@ export default function MonthlyReport({ surveys, compact = false }: MonthlyRepor
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (monthlyData.length > 0 && currentIndex >= monthlyData.length) {
+    if (monthlyData.length > 0 && (currentIndex < 0 || currentIndex >= monthlyData.length)) {
       setCurrentIndex(monthlyData.length - 1);
     }
   }, [monthlyData.length, currentIndex]);
 
-  const currentMonth = monthlyData[currentIndex];
+  const safeIndex =
+    monthlyData.length > 0 && currentIndex >= 0 && currentIndex < monthlyData.length
+      ? currentIndex
+      : monthlyData.length - 1;
+  const currentMonth = monthlyData[safeIndex];
   const hasData = monthlyData.length > 0;
 
   const handlePrev = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
+    if (safeIndex > 0) {
+      setCurrentIndex(safeIndex - 1);
     }
   };
 
   const handleNext = () => {
-    if (currentIndex < monthlyData.length - 1) {
-      setCurrentIndex(currentIndex + 1);
+    if (safeIndex < monthlyData.length - 1) {
+      setCurrentIndex(safeIndex + 1);
     }
   };
 
@@ -169,10 +173,10 @@ export default function MonthlyReport({ surveys, compact = false }: MonthlyRepor
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={handlePrev}
-          disabled={currentIndex === 0}
+          disabled={safeIndex === 0}
           className={cn(
             "p-2 rounded-xl transition-all",
-            currentIndex === 0
+            safeIndex === 0
               ? "text-ocean-600 cursor-not-allowed"
               : "text-ocean-300 hover:text-white hover:bg-ocean-700/50"
           )}
@@ -187,16 +191,16 @@ export default function MonthlyReport({ surveys, compact = false }: MonthlyRepor
             {currentMonth.label}
           </span>
           <span className="text-xs text-ocean-400">
-            ({currentIndex + 1}/{monthlyData.length})
+            ({safeIndex + 1}/{monthlyData.length})
           </span>
         </div>
 
         <button
           onClick={handleNext}
-          disabled={currentIndex === monthlyData.length - 1}
+          disabled={safeIndex === monthlyData.length - 1}
           className={cn(
             "p-2 rounded-xl transition-all",
-            currentIndex === monthlyData.length - 1
+            safeIndex === monthlyData.length - 1
               ? "text-ocean-600 cursor-not-allowed"
               : "text-ocean-300 hover:text-white hover:bg-ocean-700/50"
           )}
@@ -300,7 +304,7 @@ export default function MonthlyReport({ surveys, compact = false }: MonthlyRepor
               onClick={() => setCurrentIndex(i)}
               className={cn(
                 "w-2 h-2 rounded-full transition-all",
-                i === currentIndex
+                i === safeIndex
                   ? "bg-reef-400 w-6"
                   : "bg-ocean-600 hover:bg-ocean-500"
               )}
