@@ -10,6 +10,7 @@ import {
   RefreshCw,
   BookOpen,
   Filter,
+  FileText,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import { useFilterStore } from "@/store/filterStore";
@@ -24,10 +25,11 @@ import SyncPanel from "@/components/SyncPanel";
 import SyncStatus from "@/components/SyncStatus";
 import CustomizableDashboard from "@/components/CustomizableDashboard";
 import SpeciesAtlas from "@/components/SpeciesAtlas";
+import ReportPanel from "@/components/ReportPanel";
 import type { SurveyRecord } from "@/types";
 import { cn } from "@/lib/utils";
 
-type TabKey = "overview" | "surveys" | "analysis" | "map" | "export" | "sync" | "atlas";
+type TabKey = "overview" | "surveys" | "analysis" | "map" | "report" | "export" | "sync" | "atlas";
 
 export default function Home() {
   const allSurveys = useSurveyStore((s) => s.getActiveSurveys());
@@ -110,6 +112,7 @@ export default function Home() {
     { key: "surveys", label: "记录", icon: <Fish className="w-4 h-4" /> },
     { key: "map", label: "地图", icon: <Waves className="w-4 h-4" /> },
     { key: "analysis", label: "分析", icon: <Shell className="w-4 h-4" /> },
+    { key: "report", label: "报告", icon: <FileText className="w-4 h-4" /> },
     { key: "atlas", label: "图鉴", icon: <BookOpen className="w-4 h-4" /> },
     { key: "export", label: "导出", icon: <Menu className="w-4 h-4" /> },
     { key: "sync", label: "同步", icon: <RefreshCw className="w-4 h-4" /> },
@@ -300,6 +303,13 @@ export default function Home() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === "report" && (
+          <>
+            <FilterNotice />
+            <ReportPanel surveys={filteredSurveys} />
+          </>
         )}
 
         {activeTab === "export" && (

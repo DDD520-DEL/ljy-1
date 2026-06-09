@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   Waves,
   Fish,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import type { SurveyRecord, TideZone, SubstrateType } from "@/types";
 import { useSurveyStore } from "@/store/surveyStore";
@@ -17,6 +19,7 @@ import {
   exportAsDarwinCore,
   exportAsDarwinCoreWithPhotos,
 } from "@/components/ExportPanel";
+import ReportPanel from "@/components/ReportPanel";
 import { cn } from "@/lib/utils";
 
 const TIDE_ZONES: TideZone[] = ["high", "mid", "low"];
@@ -69,7 +72,7 @@ export default function BatchOperations({
   const updateSurvey = useSurveyStore((s) => s.updateSurvey);
   const deleteSurvey = useSurveyStore((s) => s.deleteSurvey);
 
-  const [mode, setMode] = useState<BatchMode>("menu");
+  const [mode, setMode] = useState<BatchMode | "report">("menu");
   const [processing, setProcessing] = useState(false);
   const [newTideZone, setNewTideZone] = useState<TideZone>("mid");
   const [newSubstrate, setNewSubstrate] = useState<SubstrateType>("rocky");
@@ -189,6 +192,7 @@ export default function BatchOperations({
             {mode === "modify_tide" && "批量修改潮带"}
             {mode === "modify_substrate" && "批量修改底质类型"}
             {mode === "confirm_delete" && "确认批量删除"}
+            {mode === "report" && "生成统计报告"}
           </h3>
           <button
             onClick={handleClose}
@@ -280,6 +284,20 @@ export default function BatchOperations({
               </button>
 
               <button
+                onClick={() => setMode("report")}
+                disabled={selectedSurveys.length === 0}
+                className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed text-left bg-reef-500 hover:bg-reef-600"
+              >
+                <Sparkles className="w-5 h-5 flex-shrink-0" />
+                <div className="text-left">
+                  <div className="font-semibold">生成统计报告</div>
+                  <div className="text-xs font-normal opacity-80">
+                    一键生成 HTML 报告，支持 PDF 导出和 CSV 附录
+                  </div>
+                </div>
+              </button>
+
+              <button
                 onClick={() => setMode("confirm_delete")}
                 disabled={selectedSurveys.length === 0}
                 className="w-full btn-ghost disabled:opacity-50 disabled:cursor-not-allowed text-left text-red-400 hover:bg-red-500/20 hover:text-red-300"
@@ -292,6 +310,17 @@ export default function BatchOperations({
                   </div>
                 </div>
               </button>
+            </div>
+          )}
+
+          {!result && mode === "report" && (
+            <div className="space-y-4">
+              <ReportPanel surveys={selectedSurveys} compact />
+              <div className="flex gap-2 justify-end">
+                <button onClick={backToMenu} className="btn-ghost text-sm">
+                  返回
+                </button>
+              </div>
             </div>
           )}
 

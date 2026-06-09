@@ -91,3 +91,125 @@ body {
 .leaflet-tile {
   filter: brightness(0.7) saturate(0.8) hue-rotate(180deg);
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  body {
+    background: white !important;
+    color: #111827 !important;
+  }
+
+  .print\\:bg-white {
+    background-color: white !important;
+  }
+
+  .print\\:text-gray-900 {
+    color: #111827 !important;
+  }
+
+  .print\\:text-gray-800 {
+    color: #1f2937 !important;
+  }
+
+  .print\\:text-gray-700 {
+    color: #374151 !important;
+  }
+
+  .print\\:text-gray-600 {
+    color: #4b5563 !important;
+  }
+
+  .print\\:text-gray-500 {
+    color: #6b7280 !important;
+  }
+
+  .print\\:text-gray-400 {
+    color: #9ca3af !important;
+  }
+
+  .print\\:text-teal-700 {
+    color: #0f766e !important;
+  }
+
+  .print\\:text-amber-700 {
+    color: #b45309 !important;
+  }
+
+  .print\\:text-blue-700 {
+    color: #1d4ed8 !important;
+  }
+
+  .print\\:text-purple-700 {
+    color: #7e22ce !important;
+  }
+
+  .print\\:bg-gray-50 {
+    background-color: #f9fafb !important;
+  }
+
+  .print\\:bg-gray-100 {
+    background-color: #f3f4f6 !important;
+  }
+
+  .print\\:border {
+    border-width: 1px !important;
+  }
+
+  .print\\:border-gray-200 {
+    border-color: #e5e7eb !important;
+  }
+
+  .print\\:border-gray-300 {
+    border-color: #d1d5db !important;
+  }
+
+  .print\\:rounded-lg {
+    border-radius: 0.5rem !important;
+  }
+
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  .print\\:overflow-visible {
+    overflow: visible !important;
+  }
+
+  .print\\:static {
+    position: static !important;
+  }
+
+  .print\\:inset-auto {
+    inset: auto !important;
+  }
+
+  .print\\:p-8 {
+    padding: 2rem !important;
+  }
+
+  section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+}
