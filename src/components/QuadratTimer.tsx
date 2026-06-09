@@ -138,6 +138,7 @@ export default function QuadratTimer() {
 
   const progress = calculateProgress(remaining, duration);
   const strokeDashoffset = calculateStrokeDashoffset(progress, 28);
+  const circumference = 2 * Math.PI * 28;
 
   const overtime = isOvertime(remaining);
   const warning = isWarning(remaining);

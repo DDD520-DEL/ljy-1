@@ -29,6 +29,7 @@ import {
   Locate,
   Map as MapIcon,
   Flag,
+  Calculator,
 } from "lucide-react";
 import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker } from "react-leaflet";
 import L from "leaflet";
@@ -59,6 +60,7 @@ import DiversityIndices from "./DiversityIndices";
 import PhotoCapture from "./PhotoCapture";
 import PhotoGrid from "./PhotoGrid";
 import QuadratTimer from "./QuadratTimer";
+import QuadratDensityCalc from "./QuadratDensityCalc";
 import { cn } from "@/lib/utils";
 import { mergeTemplateSpecies, speciesToTemplateSpecies } from "@/lib/template";
 
@@ -187,6 +189,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([]);
   const [quadratMarkers, setQuadratMarkers] = useState<QuadratMarker[]>([]);
   const [showMapPreview, setShowMapPreview] = useState(false);
+  const [showDensityCalc, setShowDensityCalc] = useState(false);
 
   const geolocation = useGeolocation({
     enableHighAccuracy: true,
@@ -512,6 +515,11 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
 
   const existingSpeciesIds = species.map((s) => s.speciesId);
 
+  const totalIndividuals = useMemo(
+    () => species.reduce((sum, s) => sum + s.count, 0),
+    [species]
+  );
+
   const currentSurveyId = editing?.id || tempSurveyId;
 
   return (
@@ -582,9 +590,19 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label-text flex items-center gap-1">
-                <Square className="w-4 h-4" /> 样方尺寸
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="label-text flex items-center gap-1 mb-0">
+                  <Square className="w-4 h-4" /> 样方尺寸
+                </label>
+                <button
+                  onClick={() => setShowDensityCalc(true)}
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg text-reef-300 hover:bg-reef-500/20 transition-colors"
+                  title="打开面积与密度速算工具"
+                >
+                  <Calculator className="w-3.5 h-3.5" />
+                  速算
+                </button>
+              </div>
               <select
                 value={quadratSize}
                 onChange={(e) => setQuadratSize(e.target.value)}
@@ -1382,6 +1400,15 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
           onSelect={handleAddSpecies}
           onClose={() => setShowPicker(false)}
           existingIds={existingSpeciesIds}
+        />
+      )}
+
+      {showDensityCalc && (
+        <QuadratDensityCalc
+          totalIndividuals={totalIndividuals}
+          initialSize={quadratSize}
+          onClose={() => setShowDensityCalc(false)}
+          onSizeChange={(size) => setQuadratSize(size)}
         />
       )}
 
