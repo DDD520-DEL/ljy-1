@@ -30,6 +30,7 @@ import {
   Map as MapIcon,
   Flag,
   Calculator,
+  Mic,
 } from "lucide-react";
 import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker } from "react-leaflet";
 import L from "leaflet";
@@ -39,6 +40,7 @@ import type {
   SubstrateType,
   SpeciesRecord,
   PhotoRecord,
+  AudioRecord,
   WeatherCondition,
   SurveyTemplate,
   TrackPoint,
@@ -55,10 +57,18 @@ import {
   deletePhoto,
   updatePhoto,
 } from "@/lib/photoStore";
+import {
+  getAudiosBySurvey,
+  getAudiosBySpecies,
+  deleteAudio,
+  updateAudio,
+} from "@/lib/audioStore";
 import SpeciesPicker from "./SpeciesPicker";
 import DiversityIndices from "./DiversityIndices";
 import PhotoCapture from "./PhotoCapture";
 import PhotoGrid from "./PhotoGrid";
+import AudioRecorder from "./AudioRecorder";
+import AudioPlayer from "./AudioPlayer";
 import QuadratTimer from "./QuadratTimer";
 import QuadratDensityCalc from "./QuadratDensityCalc";
 import { cn } from "@/lib/utils";
@@ -180,6 +190,10 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const [speciesPhotos, setSpeciesPhotos] = useState<Map<string, PhotoRecord[]>>(
     new Map()
   );
+  const [surveyAudios, setSurveyAudios] = useState<AudioRecord[]>([]);
+  const [speciesAudios, setSpeciesAudios] = useState<Map<string, AudioRecord[]>>(
+    new Map()
+  );
   const [tempSurveyId] = useState(
     () => `temp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
   );
@@ -282,7 +296,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
 
   useEffect(() => {
     if (editing) {
-      loadExistingPhotos(editing.id);
+      loadExistingMedia(editing.id);
       const existingMarkers = getMarkersBySurvey(editing.id);
       if (existingMarkers.length > 0) {
         setQuadratMarkers(existingMarkers);
@@ -304,27 +318,40 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
     };
   }, [trackMode, trackSessionId, geolocation, endSession]);
 
-  const loadExistingPhotos = async (surveyId: string) => {
+  const loadExistingMedia = async (surveyId: string) => {
     try {
-      const sPhotos = await getPhotosBySurvey(surveyId);
+      const [sPhotos, sAudios] = await Promise.all([
+        getPhotosBySurvey(surveyId),
+        getAudiosBySurvey(surveyId),
+      ]);
       setSurveyPhotos(sPhotos.sort((a, b) => b.createdAt - a.createdAt));
+      setSurveyAudios(sAudios.sort((a, b) => b.createdAt - a.createdAt));
 
       const speciesPhotoMap = new Map<string, PhotoRecord[]>();
+      const speciesAudioMap = new Map<string, AudioRecord[]>();
       for (const sp of editing?.species || []) {
-        const spPhotos = await getPhotosBySpecies(sp.speciesId);
-        const filtered = spPhotos.filter((p) => p.surveyId === surveyId);
-        if (filtered.length > 0) {
-          speciesPhotoMap.set(sp.speciesId, filtered);
+        const [spPhotos, spAudios] = await Promise.all([
+          getPhotosBySpecies(sp.speciesId),
+          getAudiosBySpecies(sp.speciesId),
+        ]);
+        const filteredPhotos = spPhotos.filter((p) => p.surveyId === surveyId);
+        const filteredAudios = spAudios.filter((a) => a.surveyId === surveyId);
+        if (filteredPhotos.length > 0) {
+          speciesPhotoMap.set(sp.speciesId, filteredPhotos);
+        }
+        if (filteredAudios.length > 0) {
+          speciesAudioMap.set(sp.speciesId, filteredAudios);
         }
       }
       setSpeciesPhotos(speciesPhotoMap);
+      setSpeciesAudios(speciesAudioMap);
     } catch (err) {
-      console.error("Failed to load existing photos:", err);
+      console.error("Failed to load existing media:", err);
     }
   };
 
   const handleAddSpecies = (sp: SpeciesRecord) => {
-    setSpecies((prev) => [...prev, { ...sp, photoIds: [] }]);
+    setSpecies((prev) => [...prev, { ...sp, photoIds: [], audioIds: [] }]);
   };
 
   const handleSaveAsTemplate = () => {
@@ -367,6 +394,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const removeSpecies = async (index: number) => {
     const sp = species[index];
     const spPhotos = speciesPhotos.get(sp.speciesId) || [];
+    const spAudios = speciesAudios.get(sp.speciesId) || [];
     for (const photo of spPhotos) {
       try {
         await deletePhoto(photo.id);
@@ -374,7 +402,19 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
         console.error("Failed to delete species photo:", err);
       }
     }
+    for (const audio of spAudios) {
+      try {
+        await deleteAudio(audio.id);
+      } catch (err) {
+        console.error("Failed to delete species audio:", err);
+      }
+    }
     setSpeciesPhotos((prev) => {
+      const next = new Map(prev);
+      next.delete(sp.speciesId);
+      return next;
+    });
+    setSpeciesAudios((prev) => {
       const next = new Map(prev);
       next.delete(sp.speciesId);
       return next;
@@ -421,6 +461,45 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
     }
   };
 
+  const handleSurveyAudioAdded = (audio: AudioRecord) => {
+    setSurveyAudios((prev) => [audio, ...prev]);
+  };
+
+  const handleSpeciesAudioAdded = (speciesId: string, audio: AudioRecord) => {
+    setSpeciesAudios((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(speciesId) || [];
+      next.set(speciesId, [audio, ...existing]);
+      return next;
+    });
+  };
+
+  const handleDeleteSurveyAudio = async (audioId: string) => {
+    try {
+      await deleteAudio(audioId);
+      setSurveyAudios((prev) => prev.filter((a) => a.id !== audioId));
+    } catch (err) {
+      console.error("Failed to delete audio:", err);
+    }
+  };
+
+  const handleDeleteSpeciesAudio = async (
+    speciesId: string,
+    audioId: string
+  ) => {
+    try {
+      await deleteAudio(audioId);
+      setSpeciesAudios((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(speciesId) || [];
+        next.set(speciesId, existing.filter((a) => a.id !== audioId));
+        return next;
+      });
+    } catch (err) {
+      console.error("Failed to delete species audio:", err);
+    }
+  };
+
   const updatePhotosWithSurveyId = async (surveyId: string) => {
     const allPhotos: PhotoRecord[] = [
       ...surveyPhotos,
@@ -436,6 +515,25 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
         await updatePhoto(photo.id, updates);
       } catch (err) {
         console.error("Failed to update photo surveyId:", err);
+      }
+    }
+  };
+
+  const updateAudiosWithSurveyId = async (surveyId: string) => {
+    const allAudios: AudioRecord[] = [
+      ...surveyAudios,
+      ...Array.from(speciesAudios.values()).flat(),
+    ];
+
+    for (const audio of allAudios) {
+      const updates: Partial<AudioRecord> = { surveyId };
+      if (audio.surveyId?.startsWith("temp-")) {
+        updates.surveyId = surveyId;
+      }
+      try {
+        await updateAudio(audio.id, updates);
+      } catch (err) {
+        console.error("Failed to update audio surveyId:", err);
       }
     }
   };
@@ -461,9 +559,11 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       .filter((s) => s.count > 0 || s.coverage > 0)
       .map((s) => {
         const spPhotos = speciesPhotos.get(s.speciesId) || [];
+        const spAudios = speciesAudios.get(s.speciesId) || [];
         return {
           ...s,
           photoIds: spPhotos.map((p) => p.id),
+          audioIds: spAudios.map((a) => a.id),
         };
       });
 
@@ -492,12 +592,14 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       envFactors: hasEnvFactors ? envFactors : undefined,
       notes: notes.trim() || undefined,
       photoIds: surveyPhotos.map((p) => p.id),
+      audioIds: surveyAudios.map((a) => a.id),
       trackPoints: hasTrackData ? trackPoints : undefined,
       quadratMarkers: hasQuadratData ? quadratMarkers : undefined,
     };
 
     if (editing) {
       await updatePhotosWithSurveyId(editing.id);
+      await updateAudiosWithSurveyId(editing.id);
       updateSurvey(editing.id, payload);
     } else {
       const beforeIds = new Set(useSurveyStore.getState().surveys.map((s) => s.id));
@@ -508,6 +610,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
 
       if (newSurvey) {
         await updatePhotosWithSurveyId(newSurvey.id);
+        await updateAudiosWithSurveyId(newSurvey.id);
       }
     }
     onClose();
@@ -936,6 +1039,24 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
           </div>
 
           <div>
+            <label className="label-text flex items-center gap-1">
+              <Mic className="w-4 h-4" /> 站位语音备注 (
+              {surveyAudios.length})
+            </label>
+            {surveyAudios.length > 0 && (
+              <AudioPlayer
+                audios={surveyAudios}
+                onDelete={handleDeleteSurveyAudio}
+                className="mb-3"
+              />
+            )}
+            <AudioRecorder
+              surveyId={currentSurveyId}
+              onAudioAdded={handleSurveyAudioAdded}
+            />
+          </div>
+
+          <div>
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <label className="label-text mb-0 flex items-center gap-1">
                 <PlusCircle className="w-4 h-4" /> 物种记录 ({species.length})
@@ -1102,6 +1223,7 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
               <div className="space-y-2">
                 {species.map((sp, i) => {
                   const spPhotos = speciesPhotos.get(sp.speciesId) || [];
+                  const spAudios = speciesAudios.get(sp.speciesId) || [];
                   return (
                     <div
                       key={sp.speciesId + i}
@@ -1125,6 +1247,14 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
                             }
                             compact
                           />
+                          <AudioRecorder
+                            surveyId={currentSurveyId}
+                            speciesId={sp.speciesId}
+                            onAudioAdded={(audio) =>
+                              handleSpeciesAudioAdded(sp.speciesId, audio)
+                            }
+                            compact
+                          />
                           <button
                             onClick={() => removeSpecies(i)}
                             className="p-2 rounded-lg text-red-400 hover:bg-red-500/20 transition-colors"
@@ -1141,6 +1271,15 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
                             handleDeleteSpeciesPhoto(sp.speciesId, pid)
                           }
                           size="sm"
+                        />
+                      )}
+
+                      {spAudios.length > 0 && (
+                        <AudioPlayer
+                          audios={spAudios}
+                          onDelete={(aid) =>
+                            handleDeleteSpeciesAudio(sp.speciesId, aid)
+                          }
                         />
                       )}
 

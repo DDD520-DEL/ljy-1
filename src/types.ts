@@ -33,6 +33,18 @@ export interface PhotoRecord {
   createdAt: number;
 }
 
+export interface AudioRecord {
+  id: string;
+  surveyId?: string;
+  speciesId?: string;
+  dataUrl: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  duration: number;
+  createdAt: number;
+}
+
 export interface SpeciesRecord {
   speciesId: string;
   scientificName: string;
@@ -46,6 +58,7 @@ export interface SpeciesRecord {
   family?: string;
   genus?: string;
   photoIds?: string[];
+  audioIds?: string[];
 }
 
 export interface SurveyLocation {
@@ -91,6 +104,7 @@ export interface SurveyRecord {
   envFactors?: EnvironmentalFactors;
   notes?: string;
   photoIds?: string[];
+  audioIds?: string[];
   createdAt: number;
   updatedAt?: number;
   isDeleted?: boolean;

@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronDown,
   Image as ImageIcon,
+  Mic,
   History,
   Trash as TrashIcon,
   CheckSquare,
@@ -28,7 +29,9 @@ import { useSurveyStore } from "@/store/surveyStore";
 import { useFilterStore } from "@/store/filterStore";
 import { deletePhotosBySurvey } from "@/lib/photoStore";
 import { useSurveyPhotos, useSpeciesPhotos } from "@/hooks/usePhotos";
+import { useSurveyAudios, useSpeciesAudios } from "@/hooks/useAudios";
 import PhotoGrid from "./PhotoGrid";
+import AudioPlayer from "./AudioPlayer";
 import { cn } from "@/lib/utils";
 import SurveyHistory from "./SurveyHistory";
 import RecycleBin from "./RecycleBin";
@@ -63,6 +66,9 @@ function SurveyCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const { photos: surveyPhotos, removePhoto: removeSurveyPhoto } = useSurveyPhotos(
+    expanded ? survey.id : undefined
+  );
+  const { audios: surveyAudios, removeAudio: removeSurveyAudio } = useSurveyAudios(
     expanded ? survey.id : undefined
   );
 
@@ -129,6 +135,12 @@ function SurveyCard({
                   <span className="chip text-xs flex items-center gap-1">
                     <ImageIcon className="w-3 h-3" />
                     {survey.photoIds?.length || 0}
+                  </span>
+                )}
+                {(survey.audioIds?.length || 0) > 0 && (
+                  <span className="chip text-xs flex items-center gap-1">
+                    <Mic className="w-3 h-3" />
+                    {survey.audioIds?.length || 0}
                   </span>
                 )}
               </div>
@@ -226,6 +238,19 @@ function SurveyCard({
             </div>
           )}
 
+          {surveyAudios.length > 0 && (
+            <div className="mb-3">
+              <div className="text-xs text-ocean-400 mb-1.5 flex items-center gap-1">
+                <Mic className="w-3 h-3" /> 站位语音备注 ({surveyAudios.length})
+              </div>
+              <AudioPlayer
+                audios={surveyAudios}
+                onDelete={removeSurveyAudio}
+                showDelete={false}
+              />
+            </div>
+          )}
+
           <div className="text-xs text-ocean-400 mb-1.5">物种记录:</div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {validSpecies.length === 0 ? (
@@ -260,18 +285,22 @@ function SpeciesCard({
   species: SpeciesRecord;
   surveyId: string;
 }) {
-  const [showPhotos, setShowPhotos] = useState(false);
+  const [showMedia, setShowMedia] = useState(false);
   const { photos: speciesPhotos } = useSpeciesPhotos(
-    showPhotos ? species.speciesId : undefined
+    showMedia ? species.speciesId : undefined
+  );
+  const { audios: speciesAudios } = useSpeciesAudios(
+    showMedia ? species.speciesId : undefined
   );
 
   const filteredPhotos = speciesPhotos.filter((p) => p.surveyId === surveyId);
+  const filteredAudios = speciesAudios.filter((a) => a.surveyId === surveyId);
 
   return (
     <div className="rounded-lg bg-ocean-800/30 overflow-hidden">
       <div
         className="flex items-center justify-between py-2 px-3 cursor-pointer"
-        onClick={() => setShowPhotos(!showPhotos)}
+        onClick={() => setShowMedia(!showMedia)}
       >
         <div className="min-w-0 flex-1">
           <span className="text-reef-300">{species.commonName}</span>
@@ -286,23 +315,37 @@ function SpeciesCard({
               {species.photoIds?.length || 0}
             </span>
           )}
+          {(species.audioIds?.length || 0) > 0 && (
+            <span className="text-xs text-ocean-300 flex items-center gap-1">
+              <Mic className="w-3 h-3" />
+              {species.audioIds?.length || 0}
+            </span>
+          )}
           <span className="text-ocean-200 text-xs">
             {species.count} 个 / {species.coverage}%
           </span>
-          {showPhotos ? (
+          {showMedia ? (
             <ChevronDown className="w-4 h-4 text-ocean-400" />
           ) : (
             <ChevronRight className="w-4 h-4 text-ocean-400" />
           )}
         </div>
       </div>
-      {showPhotos && filteredPhotos.length > 0 && (
-        <div className="px-3 pb-2">
-          <PhotoGrid
-            photos={filteredPhotos}
-            size="sm"
-            showDelete={false}
-          />
+      {showMedia && (
+        <div className="px-3 pb-2 space-y-2">
+          {filteredPhotos.length > 0 && (
+            <PhotoGrid
+              photos={filteredPhotos}
+              size="sm"
+              showDelete={false}
+            />
+          )}
+          {filteredAudios.length > 0 && (
+            <AudioPlayer
+              audios={filteredAudios}
+              showDelete={false}
+            />
+          )}
         </div>
       )}
     </div>
