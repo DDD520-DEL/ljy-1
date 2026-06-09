@@ -3,7 +3,8 @@ export type DashboardCardType =
   | "tideSpeciesBar"
   | "recentSurvey"
   | "speciesAbundance"
-  | "envGauge";
+  | "envGauge"
+  | "monthlyReport";
 
 export interface DashboardCard {
   id: string;
@@ -47,6 +48,11 @@ export const CARD_META: Record<
   envGauge: {
     label: "环境因子仪表盘",
     description: "显示水温、盐度、pH、溶解氧等环境参数",
+    defaultCols: 1,
+  },
+  monthlyReport: {
+    label: "调查数据月度简报",
+    description: "按自然月汇总调查次数、物种数、个体数及潮带占比，支持左右滑动切换月份",
     defaultCols: 1,
   },
 };

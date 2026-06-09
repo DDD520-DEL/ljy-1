@@ -20,6 +20,7 @@ import {
   Tag,
   Sparkles,
   Compass,
+  Calendar,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import { useFilterStore } from "@/store/filterStore";
@@ -40,6 +41,7 @@ import SpeciesGuidebook from "@/components/SpeciesGuidebook";
 import ReportPanel from "@/components/ReportPanel";
 import EquipmentChecklist from "@/components/EquipmentChecklist";
 import SpecimenManager from "@/components/SpecimenManager";
+import MonthlyReport from "@/components/MonthlyReport";
 import { useSpecimenStore } from "@/store/specimenStore";
 import type { SurveyRecord } from "@/types";
 import { cn } from "@/lib/utils";
@@ -403,6 +405,14 @@ export default function Home() {
             </div>
 
             <EquipmentReminderCard onJump={() => setActiveTab("equipment")} />
+
+            <div className="card-glass p-5">
+              <h3 className="section-title">
+                <Calendar className="w-6 h-6 text-reef-400" />
+                调查数据月度简报
+              </h3>
+              <MonthlyReport surveys={filteredSurveys} />
+            </div>
 
             <CustomizableDashboard surveys={filteredSurveys} />
 

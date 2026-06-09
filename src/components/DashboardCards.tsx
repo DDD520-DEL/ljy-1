@@ -10,7 +10,9 @@ import {
   FlaskConical,
   Wind,
   CloudSun,
+  Calendar,
 } from "lucide-react";
+import MonthlyReport from "@/components/MonthlyReport";
 import {
   LineChart,
   Line,
@@ -390,4 +392,11 @@ export function EnvGaugeCard({ surveys }: CardProps) {
       )}
     </div>
   );
+}
+
+export function MonthlyReportCard({ surveys }: CardProps) {
+  if (surveys.length === 0) {
+    return <EmptyState message="暂无调查记录数据" icon={Calendar} />;
+  }
+  return <MonthlyReport surveys={surveys} compact />;
 }

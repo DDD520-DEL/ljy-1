@@ -11,6 +11,7 @@ import {
   Gauge,
   RotateCcw,
   ChevronDown,
+  Calendar,
 } from "lucide-react";
 import type { SurveyRecord } from "@/types";
 import {
@@ -27,6 +28,7 @@ import {
   RecentSurveyCard,
   SpeciesAbundanceCard,
   EnvGaugeCard,
+  MonthlyReportCard,
 } from "@/components/DashboardCards";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +38,7 @@ const CARD_ICON: Record<DashboardCardType, React.ComponentType<{ className?: str
   recentSurvey: FileText,
   speciesAbundance: Trophy,
   envGauge: Gauge,
+  monthlyReport: Calendar,
 };
 
 function renderCardContent(type: DashboardCardType, surveys: SurveyRecord[]) {
@@ -50,6 +53,8 @@ function renderCardContent(type: DashboardCardType, surveys: SurveyRecord[]) {
       return <SpeciesAbundanceCard surveys={surveys} />;
     case "envGauge":
       return <EnvGaugeCard surveys={surveys} />;
+    case "monthlyReport":
+      return <MonthlyReportCard surveys={surveys} />;
   }
 }
 
