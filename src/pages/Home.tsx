@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   Package,
+  Tag,
 } from "lucide-react";
 import { useSurveyStore } from "@/store/surveyStore";
 import { useFilterStore } from "@/store/filterStore";
@@ -33,16 +34,19 @@ import CustomizableDashboard from "@/components/CustomizableDashboard";
 import SpeciesAtlas from "@/components/SpeciesAtlas";
 import ReportPanel from "@/components/ReportPanel";
 import EquipmentChecklist from "@/components/EquipmentChecklist";
+import SpecimenManager from "@/components/SpecimenManager";
+import { useSpecimenStore } from "@/store/specimenStore";
 import type { SurveyRecord } from "@/types";
 import { cn } from "@/lib/utils";
 
-type TabKey = "overview" | "surveys" | "analysis" | "map" | "report" | "export" | "sync" | "atlas" | "equipment";
+type TabKey = "overview" | "surveys" | "specimens" | "analysis" | "map" | "report" | "export" | "sync" | "atlas" | "equipment";
 
 export default function Home() {
   const allSurveys = useSurveyStore((s) => s.getActiveSurveys());
   const filterSurveys = useFilterStore((s) => s.filterSurveys);
   const hasActiveFilters = useFilterStore((s) => s.hasActiveFilters);
   const resetCriteria = useFilterStore((s) => s.resetCriteria);
+  const specimenCount = useSpecimenStore((s) => s.specimens.length);
 
   const filteredSurveys = useMemo(
     () => filterSurveys(allSurveys),
@@ -117,6 +121,7 @@ export default function Home() {
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
     { key: "overview", label: "总览", icon: <Activity className="w-4 h-4" /> },
     { key: "surveys", label: "记录", icon: <Fish className="w-4 h-4" /> },
+    { key: "specimens", label: "标本", icon: <Tag className="w-4 h-4" /> },
     { key: "map", label: "地图", icon: <Waves className="w-4 h-4" /> },
     { key: "analysis", label: "分析", icon: <Shell className="w-4 h-4" /> },
     { key: "report", label: "报告", icon: <FileText className="w-4 h-4" /> },
@@ -369,9 +374,9 @@ export default function Home() {
               </div>
               <div className="stat-card">
                 <div className="text-3xl font-bold text-purple-300">
-                  {stats.totalIndividuals}
+                  {specimenCount}
                 </div>
-                <div className="stat-label">累计个体</div>
+                <div className="stat-label">标本编号</div>
               </div>
             </div>
 
@@ -388,6 +393,8 @@ export default function Home() {
         {activeTab === "surveys" && (
           <SurveyList surveys={filteredSurveys} onEdit={handleEdit} />
         )}
+
+        {activeTab === "specimens" && <SpecimenManager />}
 
         {activeTab === "map" && (
           <>

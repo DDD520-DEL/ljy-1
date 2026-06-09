@@ -285,3 +285,27 @@ export interface EquipmentTemplate {
 export interface EquipmentChecklistState {
   activeTemplateId: string | null;
 }
+
+export type PreservationMethod = "alcohol" | "formalin" | "frozen" | "dried";
+
+export const PRESERVATION_LABEL: Record<PreservationMethod, string> = {
+  alcohol: "酒精",
+  formalin: "福尔马林",
+  frozen: "冷冻",
+  dried: "干制",
+};
+
+export interface Specimen {
+  id: string;
+  specimenNo: string;
+  stationAbbr: string;
+  date: string;
+  sequenceNo: number;
+  preservation: PreservationMethod;
+  location: string;
+  speciesName?: string;
+  notes?: string;
+  surveyId?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
