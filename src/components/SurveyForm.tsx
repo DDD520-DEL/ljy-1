@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   Plus,
   Minus,
@@ -23,8 +23,15 @@ import {
   Table as TableIcon,
   LayoutList,
   Check,
-  ChevronDown,
+  Navigation,
+  Pause,
+  Play,
+  Locate,
+  Map as MapIcon,
+  Flag,
 } from "lucide-react";
+import { MapContainer, TileLayer, Polyline, Marker, Popup, CircleMarker } from "react-leaflet";
+import L from "leaflet";
 import type {
   SurveyRecord,
   TideZone,
@@ -33,10 +40,14 @@ import type {
   PhotoRecord,
   WeatherCondition,
   SurveyTemplate,
+  TrackPoint,
+  QuadratMarker,
 } from "@/types";
 import { SUBSTRATE_LABEL, TIDE_LABEL } from "@/lib/diversity";
 import { useSurveyStore } from "@/store/surveyStore";
 import { useTemplateStore } from "@/store/templateStore";
+import { useTrackStore } from "@/store/trackStore";
+import { useGeolocation } from "@/hooks/useGeolocation";
 import {
   getPhotosBySurvey,
   getPhotosBySpecies,
@@ -80,9 +91,52 @@ const WEATHER_LABEL: Record<WeatherCondition, string> = {
   stormy: "暴风雨",
 };
 
+function createCurrentLocationIcon() {
+  return L.divIcon({
+    className: "current-location-marker",
+    html: `<div style="
+      width: 20px;
+      height: 20px;
+      background: #3b82f6;
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+    "></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+}
+
+function createQuadratMarkerIcon(index: number) {
+  return L.divIcon({
+    className: "quadrat-marker",
+    html: `<div style="
+      width: 28px;
+      height: 28px;
+      background: #14b8a6;
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+    ">${index + 1}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
 export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const addSurvey = useSurveyStore((s) => s.addSurvey);
   const updateSurvey = useSurveyStore((s) => s.updateSurvey);
+  const startSession = useTrackStore((s) => s.startSession);
+  const endSession = useTrackStore((s) => s.endSession);
+  const addPoint = useTrackStore((s) => s.addPoint);
+  const addMarker = useTrackStore((s) => s.addMarker);
+  const getMarkersBySurvey = useTrackStore((s) => s.getMarkersBySurvey);
 
   const [date, setDate] = useState(editing?.date || new Date().toISOString().slice(0, 10));
   const [stationName, setStationName] = useState(editing?.stationName || "");
@@ -119,9 +173,100 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
 
+  const [trackMode, setTrackMode] = useState(false);
+  const [trackSessionId, setTrackSessionId] = useState<string | null>(null);
+  const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([]);
+  const [quadratMarkers, setQuadratMarkers] = useState<QuadratMarker[]>([]);
+  const [showMapPreview, setShowMapPreview] = useState(false);
+
+  const geolocation = useGeolocation({
+    enableHighAccuracy: true,
+    timeout: 15000,
+    maximumAge: 0,
+    minDistance: 2,
+  });
+
   const templates = useTemplateStore((s) => s.templates);
   const createTemplate = useTemplateStore((s) => s.createTemplate);
   const deleteTemplate = useTemplateStore((s) => s.deleteTemplate);
+
+  useEffect(() => {
+    if (trackMode && geolocation.currentPosition && trackSessionId) {
+      addPoint(trackSessionId, geolocation.currentPosition);
+      setTrackPoints((prev) => [...prev, geolocation.currentPosition!]);
+    }
+  }, [geolocation.currentPosition, trackMode, trackSessionId, addPoint]);
+
+  const mapCenter = useMemo(() => {
+    if (geolocation.currentPosition) {
+      return [geolocation.currentPosition.lat, geolocation.currentPosition.lng] as [number, number];
+    }
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    if (!isNaN(latNum) && !isNaN(lngNum)) {
+      return [latNum, lngNum] as [number, number];
+    }
+    return [30.0, 121.0] as [number, number];
+  }, [geolocation.currentPosition, lat, lng]);
+
+  const trackPath = useMemo(() => {
+    return trackPoints.map((p) => [p.lat, p.lng] as [number, number]);
+  }, [trackPoints]);
+
+  const quadratPath = useMemo(() => {
+    return quadratMarkers.map((m) => [m.location.lat, m.location.lng] as [number, number]);
+  }, [quadratMarkers]);
+
+  const handleToggleTrackMode = useCallback(() => {
+    if (!trackMode) {
+      if (!navigator.geolocation) {
+        alert("浏览器不支持定位功能");
+        return;
+      }
+      geolocation.startTracking();
+      const sessionId = startSession(editing?.id);
+      setTrackSessionId(sessionId);
+      setTrackMode(true);
+      setTrackPoints([]);
+    } else {
+      geolocation.stopTracking();
+      if (trackSessionId) {
+        endSession(trackSessionId);
+      }
+      setTrackMode(false);
+      setTrackSessionId(null);
+    }
+  }, [trackMode, trackSessionId, geolocation, startSession, endSession, editing]);
+
+  const handleMarkQuadrat = useCallback(() => {
+    if (!geolocation.currentPosition) {
+      alert("当前位置未知，请等待 GPS 定位成功");
+      return;
+    }
+    const location = {
+      lat: geolocation.currentPosition.lat,
+      lng: geolocation.currentPosition.lng,
+    };
+    setLat(location.lat.toFixed(6));
+    setLng(location.lng.toFixed(6));
+
+    const marker = addMarker(
+      editing?.id || tempSurveyId,
+      trackSessionId || undefined,
+      location
+    );
+    setQuadratMarkers((prev) => [...prev, marker]);
+  }, [geolocation.currentPosition, addMarker, editing, trackSessionId, tempSurveyId]);
+
+  const handleGetLocation = useCallback(async () => {
+    const location = await geolocation.getCurrentLocation();
+    if (location) {
+      setLat(location.lat.toFixed(6));
+      setLng(location.lng.toFixed(6));
+    } else if (geolocation.error) {
+      alert(geolocation.error + "，请手动输入");
+    }
+  }, [geolocation]);
 
   const [surveyPhotos, setSurveyPhotos] = useState<PhotoRecord[]>([]);
   const [speciesPhotos, setSpeciesPhotos] = useState<Map<string, PhotoRecord[]>>(
@@ -134,8 +279,26 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
   useEffect(() => {
     if (editing) {
       loadExistingPhotos(editing.id);
+      const existingMarkers = getMarkersBySurvey(editing.id);
+      if (existingMarkers.length > 0) {
+        setQuadratMarkers(existingMarkers);
+      }
+      if (editing.trackPoints && editing.trackPoints.length > 0) {
+        setTrackPoints(editing.trackPoints);
+      }
     }
-  }, [editing]);
+  }, [editing, getMarkersBySurvey]);
+
+  useEffect(() => {
+    return () => {
+      if (trackMode) {
+        geolocation.stopTracking();
+        if (trackSessionId) {
+          endSession(trackSessionId);
+        }
+      }
+    };
+  }, [trackMode, trackSessionId, geolocation, endSession]);
 
   const loadExistingPhotos = async (surveyId: string) => {
     try {
@@ -155,20 +318,6 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       console.error("Failed to load existing photos:", err);
     }
   };
-
-  const getCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      alert("浏览器不支持定位");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLat(pos.coords.latitude.toFixed(6));
-        setLng(pos.coords.longitude.toFixed(6));
-      },
-      () => alert("定位失败，请手动输入")
-    );
-  }, []);
 
   const handleAddSpecies = (sp: SpeciesRecord) => {
     setSpecies((prev) => [...prev, { ...sp, photoIds: [] }]);
@@ -299,6 +448,11 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       return;
     }
 
+    if (trackMode && trackSessionId) {
+      geolocation.stopTracking();
+      endSession(trackSessionId);
+    }
+
     const finalSpecies = species
       .filter((s) => s.count > 0 || s.coverage > 0)
       .map((s) => {
@@ -320,6 +474,9 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       (v) => v !== undefined
     );
 
+    const hasTrackData = trackPoints.length > 0;
+    const hasQuadratData = quadratMarkers.length > 0;
+
     const payload = {
       date,
       stationName: stationName.trim(),
@@ -331,6 +488,8 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
       envFactors: hasEnvFactors ? envFactors : undefined,
       notes: notes.trim() || undefined,
       photoIds: surveyPhotos.map((p) => p.id),
+      trackPoints: hasTrackData ? trackPoints : undefined,
+      quadratMarkers: hasQuadratData ? quadratMarkers : undefined,
     };
 
     if (editing) {
@@ -348,6 +507,8 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
         updateSurvey(newSurvey.id, {
           photoIds: surveyPhotos.map((p) => p.id),
           species: finalSpecies,
+          trackPoints: hasTrackData ? trackPoints : undefined,
+          quadratMarkers: hasQuadratData ? quadratMarkers : undefined,
         });
       }
     }
@@ -460,9 +621,84 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
           </div>
 
           <div>
-            <label className="label-text flex items-center gap-1">
-              <MapPin className="w-4 h-4" /> 站位坐标
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="label-text flex items-center gap-1 mb-0">
+                <Navigation className="w-4 h-4" /> GPS 轨迹记录
+              </label>
+              <button
+                onClick={handleToggleTrackMode}
+                className={cn(
+                  "flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-sm font-medium transition-all",
+                  trackMode
+                    ? "bg-red-500/20 text-red-300 border border-red-500/40"
+                    : "bg-ocean-800/50 text-ocean-300 border border-ocean-700/40 hover:text-white"
+                )}
+              >
+                {trackMode ? (
+                  <>
+                    <Pause className="w-4 h-4" /> 停止记录
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" /> 开始轨迹
+                  </>
+                )}
+              </button>
+            </div>
+
+            {trackMode && (
+              <div className="card-glass p-3 mb-3 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 text-ocean-300">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    <span>正在记录轨迹...</span>
+                  </div>
+                  <div className="text-ocean-400">
+                    已记录 <span className="text-reef-300 font-medium">{trackPoints.length}</span> 个点
+                  </div>
+                </div>
+                {geolocation.error && (
+                  <div className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
+                    {geolocation.error}
+                  </div>
+                )}
+                {geolocation.currentPosition && geolocation.currentPosition.accuracy && (
+                  <div className="text-xs text-ocean-400">
+                    定位精度: ±{Math.round(geolocation.currentPosition.accuracy)}m
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mb-2">
+              <label className="label-text flex items-center gap-1 mb-0">
+                <MapPin className="w-4 h-4" /> 站位坐标
+              </label>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleGetLocation}
+                  className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]"
+                  title="获取当前位置"
+                >
+                  <Locate className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline ml-1">定位</span>
+                </button>
+                <button
+                  onClick={handleMarkQuadrat}
+                  className={cn(
+                    "py-1.5 px-3 text-xs rounded-lg font-medium transition-all min-h-[36px] flex items-center gap-1",
+                    trackMode
+                      ? "bg-reef-500/20 text-reef-300 border border-reef-500/40 hover:bg-reef-500/30"
+                      : "bg-ocean-800/50 text-ocean-400 border border-ocean-700/40 cursor-not-allowed"
+                  )}
+                  disabled={!trackMode}
+                  title={trackMode ? "标记当前位置为样方" : "请先开启轨迹记录"}
+                >
+                  <Flag className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline ml-1">标记样方</span>
+                </button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
@@ -481,12 +717,106 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
                 className="input-field"
               />
             </div>
+
+            {quadratMarkers.length > 0 && (
+              <div className="mt-2 text-xs text-ocean-400">
+                已标记 <span className="text-reef-300 font-medium">{quadratMarkers.length}</span> 个样方位置
+              </div>
+            )}
+
             <button
-              onClick={getCurrentLocation}
-              className="btn-ghost w-full mt-2 text-sm"
+              onClick={() => setShowMapPreview(!showMapPreview)}
+              className="btn-ghost w-full mt-2 text-sm flex items-center justify-center gap-1"
             >
-              <MapPin className="w-4 h-4" /> 获取当前位置
+              <MapIcon className="w-4 h-4" />
+              {showMapPreview ? "隐藏地图预览" : "显示地图预览"}
             </button>
+
+            {showMapPreview && (
+              <div
+                className="mt-3 rounded-2xl overflow-hidden border border-ocean-700/40"
+                style={{ height: 240 }}
+              >
+                <MapContainer
+                  center={mapCenter}
+                  zoom={trackPoints.length > 0 || geolocation.currentPosition ? 17 : 10}
+                  style={{ height: "100%", width: "100%" }}
+                  zoomControl={true}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; OpenStreetMap'
+                  />
+                  {trackPath.length > 1 && (
+                    <Polyline
+                      positions={trackPath}
+                      color="#3b82f6"
+                      weight={4}
+                      opacity={0.8}
+                    />
+                  )}
+                  {quadratPath.length > 1 && (
+                    <Polyline
+                      positions={quadratPath}
+                      color="#14b8a6"
+                      weight={3}
+                      opacity={0.9}
+                      dashArray="8, 4"
+                    />
+                  )}
+                  {quadratMarkers.map((marker, i) => (
+                    <Marker
+                      key={marker.id}
+                      position={[marker.location.lat, marker.location.lng]}
+                      icon={createQuadratMarkerIcon(i)}
+                    >
+                      <Popup>
+                        <div className="text-slate-800 text-sm">
+                          <div className="font-medium">样方 #{i + 1}</div>
+                          <div className="text-xs text-slate-600">
+                            {marker.location.lat.toFixed(6)}, {marker.location.lng.toFixed(6)}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {new Date(marker.timestamp).toLocaleString("zh-CN")}
+                          </div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                  {geolocation.currentPosition && (
+                    <Marker
+                      position={[geolocation.currentPosition.lat, geolocation.currentPosition.lng]}
+                      icon={createCurrentLocationIcon()}
+                    >
+                      <Popup>
+                        <div className="text-slate-800 text-sm">
+                          <div className="font-medium">当前位置</div>
+                          <div className="text-xs text-slate-600">
+                            {geolocation.currentPosition.lat.toFixed(6)}, {geolocation.currentPosition.lng.toFixed(6)}
+                          </div>
+                          {geolocation.currentPosition.accuracy && (
+                            <div className="text-xs text-slate-500">
+                              精度: ±{Math.round(geolocation.currentPosition.accuracy)}m
+                            </div>
+                          )}
+                        </div>
+                      </Popup>
+                    </Marker>
+                  )}
+                  {geolocation.currentPosition && geolocation.currentPosition.accuracy && (
+                    <CircleMarker
+                      center={[geolocation.currentPosition.lat, geolocation.currentPosition.lng]}
+                      radius={Math.min(geolocation.currentPosition.accuracy / 5, 50)}
+                      fillColor="#3b82f6"
+                      fillOpacity={0.1}
+                      color="#3b82f6"
+                      weight={1}
+                      opacity={0.3}
+                    />
+                  )}
+                </MapContainer>
+              </div>
+            )}
           </div>
 
           <div className="card-glass p-4 space-y-3">

@@ -53,6 +53,32 @@ export interface SurveyLocation {
   lng: number;
 }
 
+export interface TrackPoint {
+  lat: number;
+  lng: number;
+  timestamp: number;
+  accuracy?: number;
+  altitude?: number | null;
+}
+
+export interface TrackSession {
+  id: string;
+  surveyId?: string;
+  startTime: number;
+  endTime?: number;
+  points: TrackPoint[];
+  isActive: boolean;
+}
+
+export interface QuadratMarker {
+  id: string;
+  surveyId: string;
+  trackSessionId?: string;
+  location: SurveyLocation;
+  timestamp: number;
+  orderIndex: number;
+}
+
 export interface SurveyRecord {
   id: string;
   date: string;
@@ -69,6 +95,8 @@ export interface SurveyRecord {
   updatedAt?: number;
   isDeleted?: boolean;
   deletedAt?: number;
+  trackPoints?: TrackPoint[];
+  quadratMarkers?: QuadratMarker[];
 }
 
 export interface SurveyVersionSnapshot {
