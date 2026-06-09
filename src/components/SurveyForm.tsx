@@ -58,6 +58,7 @@ import SpeciesPicker from "./SpeciesPicker";
 import DiversityIndices from "./DiversityIndices";
 import PhotoCapture from "./PhotoCapture";
 import PhotoGrid from "./PhotoGrid";
+import QuadratTimer from "./QuadratTimer";
 import { cn } from "@/lib/utils";
 import { mergeTemplateSpecies, speciesToTemplateSpecies } from "@/lib/template";
 
@@ -1383,6 +1384,8 @@ export default function SurveyForm({ onClose, editing }: SurveyFormProps) {
           existingIds={existingSpeciesIds}
         />
       )}
+
+      <QuadratTimer />
     </div>
   );
 }
