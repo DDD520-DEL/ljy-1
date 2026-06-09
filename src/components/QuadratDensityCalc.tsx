@@ -11,8 +11,16 @@ import {
   LandPlot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type ShapeType = "square" | "circle";
+import {
+  SQUARE_PRESETS,
+  CIRCLE_PRESETS,
+  getMappedQuadratSize,
+  calculateSquareArea,
+  calculateCircleArea,
+  sqMetersToHectares,
+  calculateDensity,
+} from "@/lib/quadratDensity";
+import type { ShapeType } from "@/lib/quadratDensity";
 
 interface QuadratDensityCalcProps {
   totalIndividuals: number;
@@ -21,22 +29,6 @@ interface QuadratDensityCalcProps {
   onClose?: () => void;
   onSizeChange?: (size: string) => void;
 }
-
-const SQUARE_PRESETS = [
-  { label: "0.25×0.25m", side: 0.25 },
-  { label: "0.5×0.5m", side: 0.5 },
-  { label: "1×1m", side: 1 },
-  { label: "2×2m", side: 2 },
-  { label: "5×5m", side: 5 },
-];
-
-const CIRCLE_PRESETS = [
-  { label: "r=0.28m", radius: 0.28 },
-  { label: "r=0.56m", radius: 0.56 },
-  { label: "r=1m", radius: 1 },
-  { label: "r=1.78m", radius: 1.78 },
-  { label: "r=2.82m", radius: 2.82 },
-];
 
 export default function QuadratDensityCalc({
   totalIndividuals,
@@ -61,13 +53,13 @@ export default function QuadratDensityCalc({
       if (customSide) {
         const side = parseFloat(customSide);
         if (!isNaN(side) && side > 0) {
-          area = side * side;
+          area = calculateSquareArea(side);
           display = `${side}×${side}m 正方形`;
         }
       } else if (selectedPreset) {
         const preset = SQUARE_PRESETS.find((p) => p.label === selectedPreset);
         if (preset) {
-          area = preset.side * preset.side;
+          area = calculateSquareArea(preset.side);
           display = preset.label + " 正方形";
         }
       }
@@ -75,13 +67,13 @@ export default function QuadratDensityCalc({
       if (customRadius) {
         const radius = parseFloat(customRadius);
         if (!isNaN(radius) && radius > 0) {
-          area = Math.PI * radius * radius;
+          area = calculateCircleArea(radius);
           display = `r=${radius}m 圆形`;
         }
       } else if (selectedPreset) {
         const preset = CIRCLE_PRESETS.find((p) => p.label === selectedPreset);
         if (preset) {
-          area = Math.PI * preset.radius * preset.radius;
+          area = calculateCircleArea(preset.radius);
           display = preset.label + " 圆形";
         }
       }
@@ -89,13 +81,15 @@ export default function QuadratDensityCalc({
 
     return {
       areaSqM: area,
-      areaHa: area / 10000,
+      areaHa: sqMetersToHectares(area),
       areaDisplay: display,
     };
   }, [shape, customSide, customRadius, selectedPreset]);
 
-  const densityPerSqM = areaSqM > 0 ? totalIndividuals / areaSqM : 0;
-  const densityPerHa = areaHa > 0 ? totalIndividuals / areaHa : 0;
+  const { perSqMeter: densityPerSqM, perHectare: densityPerHa } = calculateDensity(
+    totalIndividuals,
+    areaSqM
+  );
 
   const handleSelectPreset = (label: string) => {
     setSelectedPreset(label);
@@ -105,7 +99,10 @@ export default function QuadratDensityCalc({
       setCustomRadius("");
     }
     if (onSizeChange) {
-      onSizeChange(label);
+      const mappedSize = getMappedQuadratSize(shape, label);
+      if (mappedSize) {
+        onSizeChange(mappedSize);
+      }
     }
   };
 
